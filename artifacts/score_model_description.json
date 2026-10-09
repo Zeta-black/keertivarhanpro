@@ -1,0 +1,6 @@
+{
+  "label": "REAL PUBLIC DATA: QA-PBP-RL-Nexus PottsModel_Energies, PET/PE/PP bb1; arithmetic 20-aa-to-6-class aggregation; canonical binding score = negative raw Potts energy",
+  "raw_score": "Potts energy (lower is preferred by source)",
+  "canonical_binding_score": "-raw_score",
+  "aggregation": "arithmetic mean within the deterministic six-class mapping, source positions 2..9"
+}

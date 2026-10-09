@@ -1,0 +1,117 @@
+{
+  "timestamp_utc": "2026-10-04T19:41:48.618302+00:00",
+  "git_commit": null,
+  "dataset_source_identifier": "REAL PUBLIC DATA: QA-PBP-RL-Nexus PottsModel_Energies, PET/PE/PP bb1; arithmetic 20-aa-to-6-class aggregation; canonical binding score = negative raw Potts energy",
+  "source_checksum": "ea704a2f0ccc0af2d621262ea2d82f649c4cfda78145cd844c04277696cb683a",
+  "preprocessing_version": "0.1.0",
+  "score_orientation": "higher canonical binding score = stronger predicted binding",
+  "normalization_method": "none",
+  "random_seed": 42,
+  "software": {
+    "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.26100-SP0"
+  },
+  "warnings": [
+    "All outputs are computational predictions, not biological validation.",
+    "D-Wave status: NOT EXECUTED - credentials/remote access unavailable"
+  ],
+  "d_wave_executed": false,
+  "search_space": {
+    "positions": 8,
+    "classes": 6,
+    "binary_variables": 48,
+    "valid_sequences": 1679616
+  },
+  "cache": {
+    "path": "data\\processed\\all_8mer_scores_real.npz",
+    "status": "loaded",
+    "preprocessing_seconds": 0.6517787000011595,
+    "size_bytes": 36719582
+  },
+  "score_scale_verification": {
+    "source": "same bb1 Potts-energy protocol for PET, PE, PP",
+    "full_space_statistics": {
+      "PET": {
+        "mean": -63.60992891975309,
+        "std": 52.792447096434415,
+        "min": -256.41975,
+        "max": 41.00083333333335
+      },
+      "PE": {
+        "mean": -64.00871336419753,
+        "std": 50.54540616064961,
+        "min": -280.17556666666667,
+        "max": 19.215099999999993
+      },
+      "PP": {
+        "mean": -77.2834437654321,
+        "std": 54.21705972289189,
+        "min": -349.12649999999996,
+        "max": 24.1974
+      }
+    },
+    "decision": "no normalization; standard-deviation ratio is below 1.08 and all scores share the same raw-energy convention"
+  },
+  "runtimes_seconds": {
+    "preprocessing": 0.6517787000011595,
+    "surrogate_training": 4.506175800001074,
+    "qubo_construction": 15.334788799998933,
+    "total": 44.67663480000192
+  },
+  "validation": {
+    "max_surrogate_qubo_reconstruction_error": 1.4210854715202004e-13,
+    "max_objective_qubo_energy_error": 9.140421752817929e-11,
+    "penalty_method": "P = multiplier * (sum(abs(linear objective coefficients)) + sum(abs(quadratic objective coefficients))) + 1; conservative full objective-range bound."
+  },
+  "d_wave": {
+    "status": "NOT EXECUTED - credentials/remote access unavailable",
+    "reason": "API token not defined"
+  },
+  "config": {
+    "experiment": {
+      "target": "PET",
+      "off_targets": [
+        "PE",
+        "PP"
+      ],
+      "peptide_length": 8,
+      "alphabet": [
+        "AROM_W",
+        "AROM_FY",
+        "HYDROPHOBIC",
+        "SMALL_POLAR",
+        "CHARGED_NEG",
+        "CHARGED_POS"
+      ],
+      "lambda_values": [
+        0.0,
+        0.5,
+        1.0,
+        2.0,
+        5.0
+      ],
+      "score_source": "real",
+      "normalization": "none"
+    },
+    "surrogate": {
+      "ridge_alpha": 1e-06,
+      "train_size": 12000,
+      "validation_size": 3000,
+      "test_size": 3000,
+      "pass_r2": 0.9,
+      "warn_r2": 0.75
+    },
+    "optimization": {
+      "solver_tolerance": 1e-08,
+      "penalty_multiplier": 2.0
+    },
+    "simulated_annealing": {
+      "num_reads": 500,
+      "num_sweeps": 500,
+      "runs": 3
+    },
+    "reproducibility": {
+      "seed": 42
+    }
+  }
+}

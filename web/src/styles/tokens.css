@@ -1,0 +1,301 @@
+/**
+ * QBind Select design tokens - "Molecular Discovery" theme.
+ *
+ * One visual language for every route, modal, chart, empty state and report.
+ *
+ * Semantic colour mapping, used consistently everywhere:
+ *   cyan    primary actions, and the PET target
+ *   teal    validated / proven / success
+ *   violet  optimisation and the solver machinery
+ *   amber   off-target plastics and anything needing attention
+ *   rose    errors and "not available"
+ *
+ * The canvas is dark by design (a cinematic scientific instrument), but a light
+ * theme is fully supported for readability, printing and user preference.
+ * Tokens are defined on bare `:root` first so no colour exists only inside a
+ * media query.
+ */
+
+:root {
+  /* ---- Brand ramps (theme-independent raw values) ---- */
+  --cyan-100: #d8fbff;
+  --cyan-300: #86ecf8;
+  --cyan-400: #42dbea;
+  --cyan-500: #1dbdd0;
+  --cyan-600: #0e93a6;
+  --cyan-700: #0a6e7e;
+
+  --teal-300: #7ce0cb;
+  --teal-400: #35c9aa;
+  --teal-500: #1ba88b;
+  --teal-600: #137f6a;
+
+  --violet-300: #c4b2fb;
+  --violet-400: #9574f5;
+  --violet-500: #7a53e8;
+  --violet-600: #6039c9;
+
+  --amber-300: #ffd79a;
+  --amber-400: #f5b85c;
+  --amber-500: #e09a2e;
+  --amber-600: #b87a18;
+
+  --rose-300: #ffb3bd;
+  --rose-400: #f2738a;
+  --rose-500: #d94861;
+  --rose-600: #b32d45;
+
+  /* ---- Dark canvas (the default look) ---- */
+  --ink-900: #07111f;
+  --ink-850: #091526;
+  --ink-800: #0b182a;
+  --ink-750: #0f1f36;
+  --ink-700: #132743;
+  --ink-600: #1b3555;
+  --ink-500: #27476d;
+
+  /* ---- Semantic surfaces ---- */
+  --bg: var(--ink-900);
+  --bg-deep: #050c16;
+  --surface: var(--ink-800);
+  --surface-raised: var(--ink-750);
+  --surface-sunken: var(--ink-850);
+  --surface-overlay: #0d1c31;
+  --border: #1d3b5f;
+  --border-strong: #3567a4;
+  --border-subtle: #16304f;
+
+  /* ---- Text ---- */
+  --text: #e8f1fa;
+  --text-strong: #f8fcff;
+  --text-muted: #9fb4cc;
+  --text-faint: #6b85a3;
+  /* Text that sits on a filled accent block. */
+  --text-on-accent: #04141b;
+  /* Glyph colour for a filled amino-acid-class swatch. The dark theme's class
+     colours are light pastels, so a near-black glyph is the legible choice;
+     the light theme inverts this. Verified in tests/ui/contrast.test.ts. */
+  --text-on-block: #04141b;
+
+  /* ---- Semantic accents ---- */
+  --accent: var(--cyan-400);
+  --accent-strong: var(--cyan-300);
+  --accent-dim: var(--cyan-700);
+  --success: var(--teal-400);
+  --optimise: var(--violet-400);
+  --attention: var(--amber-400);
+  --danger: var(--rose-400);
+
+  /* ---- Plastics (semantic, used in every chart and card) ---- */
+  --c-pet: var(--cyan-400);
+  --c-pe: var(--amber-400);
+  --c-pp: var(--violet-400);
+
+  /* ---- Amino-acid classes (stable identity across the whole app) ---- */
+  --c-arom-w: #f2a5d8;
+  --c-arom-fy: #c58bf0;
+  --c-hydrophobic: #f5b85c;
+  --c-small-polar: #58d6b4;
+  --c-charged-neg: #5bb7f5;
+  --c-charged-pos: #f5796f;
+
+  /* ---- Data provenance badges ---- */
+  --prov-computed: var(--teal-400);
+  --prov-sampled: var(--cyan-400);
+  --prov-estimate: var(--violet-400);
+  --prov-illustrative: var(--amber-400);
+  --prov-unavailable: var(--text-faint);
+
+  /* ---- Typography ---- */
+  --font-sans: 'Inter var', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo,
+    Consolas, monospace;
+
+  /* Fluid scale. Body never drops below 16px on any viewport. */
+  --fs-xs: 0.78rem;
+  --fs-sm: 0.875rem;
+  --fs-base: 1rem;
+  --fs-md: clamp(1.03rem, 0.99rem + 0.2vw, 1.13rem);
+  --fs-lg: clamp(1.2rem, 1.12rem + 0.4vw, 1.4rem);
+  --fs-xl: clamp(1.45rem, 1.3rem + 0.75vw, 1.85rem);
+  --fs-2xl: clamp(1.8rem, 1.5rem + 1.5vw, 2.6rem);
+  --fs-3xl: clamp(2.2rem, 1.6rem + 3vw, 3.8rem);
+  --fs-hero: clamp(2.4rem, 1.5rem + 4.4vw, 4.6rem);
+
+  --lh-tight: 1.12;
+  --lh-snug: 1.3;
+  --lh-base: 1.6;
+  --lh-loose: 1.75;
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  --tracking-tight: -0.02em;
+  --tracking-wide: 0.02em;
+  --tracking-caps: 0.09em;
+
+  /* ---- Space (4px base) ---- */
+  --s-1: 0.25rem;
+  --s-2: 0.5rem;
+  --s-3: 0.75rem;
+  --s-4: 1rem;
+  --s-5: 1.5rem;
+  --s-6: 2rem;
+  --s-7: 3rem;
+  --s-8: 4rem;
+  --s-9: 6rem;
+
+  /* ---- Radii ---- */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+  --r-pill: 999px;
+
+  /* ---- Elevation. Dark themes read depth from glow + border, not just shadow. ---- */
+  --shadow-sm: 0 1px 2px rgba(2, 8, 16, 0.5);
+  --shadow-md: 0 4px 16px rgba(2, 8, 16, 0.5);
+  --shadow-lg: 0 16px 48px rgba(2, 8, 16, 0.6);
+  --shadow-glow: 0 0 0 1px rgba(66, 219, 234, 0.25), 0 8px 32px rgba(66, 219, 234, 0.12);
+
+  /* ---- Focus ring. Must stay visible on every surface. ---- */
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  /* ---- Motion ---- */
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 420ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ---- Layout ---- */
+  --max-content: 1280px;
+  --max-prose: 68ch;
+  --nav-h: 60px;
+  --touch-min: 44px;
+
+  /* ---- Scientific grid motif ---- */
+  --grid-line: rgba(66, 219, 234, 0.055);
+  --grid-size: 46px;
+
+  color-scheme: dark light;
+}
+
+/* ------------------------------------------------------------------ *
+ * Light theme. Redefines only what changes; every token above still
+ * has a value, so nothing is undefined in any combination.
+ * The explicit choice and the system preference are kept as two
+ * separate blocks so an explicit [data-theme] always wins.
+ * ------------------------------------------------------------------ */
+:root[data-theme='light'] {
+  --bg: #f4f8fc;
+  --bg-deep: #e8f0f8;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #eef4fa;
+  --surface-overlay: #ffffff;
+  --border: #c9d9e8;
+  --border-strong: #6a90b6;
+  --border-subtle: #dde8f2;
+
+  --text: #0e2238;
+  --text-strong: #05121f;
+  --text-muted: #44607c;
+  --text-faint: #5a7188;
+  --text-on-accent: #ffffff;
+  --text-on-block: #ffffff;
+
+  --accent: #0c7a8a;
+  --accent-strong: var(--cyan-700);
+  --accent-dim: var(--cyan-300);
+  --success: #137d68;
+  --optimise: var(--violet-600);
+  --attention: #986514;
+  --danger: var(--rose-600);
+
+  --c-pet: #0c7a8a;
+  --c-pe: #986514;
+  --c-pp: #7851e8;
+
+  --c-arom-w: #be4a9c;
+  --c-arom-fy: #8a46c4;
+  --c-hydrophobic: #a16b15;
+  --c-small-polar: #0e866a;
+  --c-charged-neg: #1f71b8;
+  --c-charged-pos: #c23b30;
+
+  --prov-computed: #137d68;
+  --prov-sampled: #0c7a8a;
+  --prov-estimate: var(--violet-600);
+  --prov-illustrative: #986514;
+  --prov-unavailable: var(--text-faint);
+
+  --shadow-sm: 0 1px 2px rgba(14, 34, 56, 0.08);
+  --shadow-md: 0 4px 16px rgba(14, 34, 56, 0.1);
+  --shadow-lg: 0 16px 48px rgba(14, 34, 56, 0.14);
+  --shadow-glow: 0 0 0 1px rgba(14, 147, 166, 0.3), 0 8px 32px rgba(14, 147, 166, 0.12);
+
+  --grid-line: rgba(14, 94, 120, 0.07);
+
+  color-scheme: light;
+}
+
+/* System preference, only when the user has not chosen explicitly. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']):not([data-theme='light']) {
+    --bg: #f4f8fc;
+    --bg-deep: #e8f0f8;
+    --surface: #ffffff;
+    --surface-raised: #ffffff;
+    --surface-sunken: #eef4fa;
+    --surface-overlay: #ffffff;
+    --border: #c9d9e8;
+    --border-strong: #6a90b6;
+    --border-subtle: #dde8f2;
+
+    --text: #0e2238;
+    --text-strong: #05121f;
+    --text-muted: #44607c;
+    --text-faint: #5a7188;
+    --text-on-accent: #ffffff;
+    --text-on-block: #ffffff;
+
+    --accent: #0c7a8a;
+    --accent-strong: var(--cyan-700);
+    --accent-dim: var(--cyan-300);
+    --success: #137d68;
+    --optimise: var(--violet-600);
+    --attention: #986514;
+    --danger: var(--rose-600);
+
+    --c-pet: #0c7a8a;
+    --c-pe: #986514;
+    --c-pp: #7851e8;
+
+    --c-arom-w: #be4a9c;
+    --c-arom-fy: #8a46c4;
+    --c-hydrophobic: #a16b15;
+    --c-small-polar: #0e866a;
+    --c-charged-neg: #1f71b8;
+    --c-charged-pos: #c23b30;
+
+    --prov-computed: #137d68;
+    --prov-sampled: #0c7a8a;
+    --prov-estimate: var(--violet-600);
+    --prov-illustrative: #986514;
+    --prov-unavailable: var(--text-faint);
+
+    --shadow-sm: 0 1px 2px rgba(14, 34, 56, 0.08);
+    --shadow-md: 0 4px 16px rgba(14, 34, 56, 0.1);
+    --shadow-lg: 0 16px 48px rgba(14, 34, 56, 0.14);
+    --shadow-glow: 0 0 0 1px rgba(14, 147, 166, 0.3), 0 8px 32px rgba(14, 147, 166, 0.12);
+
+    --grid-line: rgba(14, 94, 120, 0.07);
+
+    color-scheme: light;
+  }
+}

@@ -1,0 +1,24 @@
+experiment:
+  target: PET
+  off_targets: [PE, PP]
+  peptide_length: 8
+  alphabet: [AROM_W, AROM_FY, HYDROPHOBIC, SMALL_POLAR, CHARGED_NEG, CHARGED_POS]
+  lambda_values: [0.0, 0.5, 1.0, 2.0, 5.0]
+  score_source: real
+  normalization: none
+surrogate:
+  ridge_alpha: 1.0e-6
+  train_size: 12000
+  validation_size: 3000
+  test_size: 3000
+  pass_r2: 0.90
+  warn_r2: 0.75
+optimization:
+  solver_tolerance: 1.0e-8
+  penalty_multiplier: 2.0
+simulated_annealing:
+  num_reads: 500
+  num_sweeps: 500
+  runs: 3
+reproducibility:
+  seed: 42

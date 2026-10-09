@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.env
+
+# Large generated data. Regenerate with:
+#   py scripts/run_benchmark.py --config config/experiment.yaml
+data/processed/*.npz
+# The raw QA-PBP-RL-Nexus clone is ~23 MB and belongs to its original authors.
+data/raw/QA-PBP-RL-Nexus/
+
+# Node / web
+web/node_modules/
+web/dist/
+web/.vitest-assertions.jsonl
+web/test-results/
+web/playwright-report/
+web/e2e-results.json
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Deliberately NOT ignored, these are deliverables:
+#   results/            benchmark output
+#   figures/            benchmark figures
+#   artifacts/          variable map and model descriptions
+#   web/review/         the 500-scenario issue matrix
+#   web/public/model/   the exported coefficients the browser scores with
+node_modules/
+dist/
+build/
+.next/
+.env
+.env.*
+!.env.example
+*.log

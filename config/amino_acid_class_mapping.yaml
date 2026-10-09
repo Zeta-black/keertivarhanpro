@@ -1,0 +1,10 @@
+# Deterministic reduced alphabet. A displayed residue is representative only;
+# optimization is performed at class, not individual-residue, resolution.
+classes:
+  AROM_W: {residues: [W], representative: W}
+  AROM_FY: {residues: [F, Y], representative: F}
+  HYDROPHOBIC: {residues: [A, V, I, L, M, C], representative: L}
+  SMALL_POLAR: {residues: [G, S, T, N, Q], representative: S}
+  CHARGED_NEG: {residues: [D, E], representative: E}
+  CHARGED_POS: {residues: [K, R, H], representative: K}
+aggregation: "A residue-level score maps to its class by arithmetic mean within each class; no residue-level source was available in this run."

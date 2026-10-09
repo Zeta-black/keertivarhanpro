@@ -1,0 +1,106 @@
+{
+  "disclaimer": "SIMULATED REVIEW. These 500 scenarios are scripted heuristic inspections executed against the real rendered application. No human participated. A passing scenario means the automated checks found no defect, NOT that a person understood the page.",
+  "pendingHumanVerification": [
+    "Can a novice explain what PET, PE and PP are after a 30-90 second walkthrough?",
+    "Can a novice explain what a peptide is in their own words?",
+    "Can a novice explain what the Selectivity Priority dial does?",
+    "Can a novice state what the displayed results do NOT prove?",
+    "These require moderated testing with real participants and consent. NOT measured here."
+  ],
+  "scenariosEvaluated": 500,
+  "distinctEnvironmentsRendered": 144,
+  "checksExecuted": 4969,
+  "personas": [
+    "Secondary-school beginner",
+    "Accessibility / keyboard user",
+    "General visitor on a phone",
+    "Hackathon judge",
+    "Chemistry researcher",
+    "Computational-science student",
+    "Biotechnology undergraduate",
+    "ECE undergraduate"
+  ],
+  "checkCatalogue": [
+    {
+      "id": "plainTitle",
+      "title": "Screen has exactly one plain-English h1",
+      "severityIfFailed": "major"
+    },
+    {
+      "id": "onePurpose",
+      "title": "Screen states its purpose in one sentence",
+      "severityIfFailed": "major"
+    },
+    {
+      "id": "primaryAction",
+      "title": "A visible primary action exists",
+      "severityIfFailed": "critical"
+    },
+    {
+      "id": "noBareNumbers",
+      "title": "Every displayed statistic carries a label and a unit or direction",
+      "severityIfFailed": "critical"
+    },
+    {
+      "id": "jargonExplained",
+      "title": "Specialist terms appear with an inline explanation",
+      "severityIfFailed": "major"
+    },
+    {
+      "id": "keyboardReachable",
+      "title": "Every control is keyboard reachable",
+      "severityIfFailed": "critical"
+    },
+    {
+      "id": "honestyPresent",
+      "title": "Scientific limitations are stated where results are shown",
+      "severityIfFailed": "critical"
+    },
+    {
+      "id": "stateHandled",
+      "title": "The screen handles its empty, loading and error states explicitly",
+      "severityIfFailed": "major"
+    },
+    {
+      "id": "noHorizontalOverflow",
+      "title": "No element forces the page to scroll sideways",
+      "severityIfFailed": "major"
+    },
+    {
+      "id": "motionOptional",
+      "title": "Animation can be switched off and nothing is lost",
+      "severityIfFailed": "major"
+    },
+    {
+      "id": "landmarks",
+      "title": "All content sits inside a navigable landmark",
+      "severityIfFailed": "major"
+    },
+    {
+      "id": "accessibleGraphics",
+      "title": "Every chart, canvas and diagram has an accessible name",
+      "severityIfFailed": "major"
+    },
+    {
+      "id": "provenanceLabelled",
+      "title": "Numbers say whether they were computed, sampled, estimated or illustrated",
+      "severityIfFailed": "critical"
+    },
+    {
+      "id": "nextStepObvious",
+      "title": "A route onward from this screen is present",
+      "severityIfFailed": "minor"
+    },
+    {
+      "id": "recoveryAvailable",
+      "title": "Destructive or confusing actions can be undone or reset",
+      "severityIfFailed": "major"
+    }
+  ],
+  "findings": {
+    "critical": 0,
+    "major": 0,
+    "minor": 0
+  },
+  "openFindings": []
+}

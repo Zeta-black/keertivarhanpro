@@ -1,0 +1,6 @@
+{
+  "label": "PROXY / SYNTHETIC SCORING MODEL",
+  "raw_score": "same as canonical_binding_score",
+  "orientation": "higher score = stronger predicted binding",
+  "coefficient_explanation": "PET linear class preference is aromatic-rich; PE/PP prefer hydrophobic class. Pair matrices are seeded, small (normal sigma 0.045) class co-occurrence proxy terms, with +0.045 aromatic PET or +0.040 hydrophobic PE/PP diagonal increments."
+}
