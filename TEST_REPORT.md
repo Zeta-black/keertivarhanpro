@@ -130,7 +130,7 @@ payload, a 3000-character payload, `__proto__[polluted]=1`,
 `constructor[prototype][polluted]=1`, duplicate keys, `#%%%`): the app renders
 normally, throws nothing, and `Object.prototype` is never polluted.
 
-Also verified: corrupt `localStorage` (`{{{not json`) and a structurally valid
+Also verified: corrupt `localStorage` (`{% raw %}{{{not json{% endraw %}`) and a structurally valid
 but hostile payload both survive a reload; hammering Run eight times produces
 **exactly one** completed run; navigating away mid-run and back is consistent;
 a mid-run reload recovers to a clean cold state; rapid slider dragging settles
