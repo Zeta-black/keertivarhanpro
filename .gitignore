@@ -40,3 +40,14 @@ build/
 .env.*
 !.env.example
 *.log
+
+# The RDKit WebAssembly runtime is copied out of node_modules by
+# web/scripts/sync-rdkit.mjs (predev/prebuild/pretest). Generating it keeps a
+# 7 MB vendored binary out of the repository and keeps the served build pinned
+# to whatever package-lock.json resolves.
+web/public/rdkit/
+
+# Playwright output.
+web/test-results/
+web/playwright-report/
+web/e2e-results.json

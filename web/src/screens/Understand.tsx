@@ -19,6 +19,7 @@ import {
   ProvenanceBadge,
   ScreenHeader,
   Stat,
+  StatGroup,
   formatInt,
   formatMs,
   formatSci,
@@ -43,23 +44,25 @@ import {
   variableIndex,
 } from '../science/alphabet';
 import { useStore } from '../state/store';
+import { QuantumConnection } from './QuantumConnection';
 import { Heatmap, LineChart } from '../viz/charts';
 
-type Section = 'switches' | 'qubo' | 'scale' | 'verify' | 'about' | 'honesty';
+type Section = 'quantum' | 'switches' | 'qubo' | 'scale' | 'verify' | 'about';
 
 const SECTIONS: { id: Section; label: string; legacy: string }[] = [
+  // First, because it is the first question anyone asks.
+  { id: 'quantum', label: 'What is quantum here?', legacy: 'QUBO' },
   { id: 'switches', label: 'Why 48 switches?', legacy: 'QUBO' },
   { id: 'qubo', label: 'The puzzle matrix', legacy: 'QUBO' },
   { id: 'scale', label: 'Scale and limits', legacy: 'Scale (P1)' },
   { id: 'verify', label: 'Confidence centre', legacy: 'Verify' },
   { id: 'about', label: 'About this project', legacy: 'About' },
-  { id: 'honesty', label: 'What this does not show', legacy: 'Honesty' },
 ];
 
 export function UnderstandScreen(): JSX.Element {
   const { state, send } = useStore();
   const { navigate } = useRouter();
-  const [section, setSection] = useState<Section>('switches');
+  const [section, setSection] = useState<Section>('quantum');
   const researcher = state.mode === 'researcher';
 
   // Fetch the real QUBO for the current priority when the matrix is on screen.
@@ -103,12 +106,12 @@ export function UnderstandScreen(): JSX.Element {
           </ul>
         </nav>
 
+        {section === 'quantum' ? <QuantumConnection /> : null}
         {section === 'switches' ? <SwitchesSection researcher={researcher} /> : null}
         {section === 'qubo' ? <QuboSection researcher={researcher} /> : null}
         {section === 'scale' ? <ScaleSection researcher={researcher} /> : null}
         {section === 'verify' ? <VerifySection /> : null}
         {section === 'about' ? <AboutSection onNavigate={navigate} /> : null}
-        {section === 'honesty' ? <HonestySection /> : null}
       </div>
     </div>
   );
@@ -404,34 +407,35 @@ function QuboSection({ researcher }: { readonly researcher: boolean }): JSX.Elem
               />
             </div>
 
-            <div className="grid-auto" style={{ marginTop: 'var(--s-5)' }}>
+            <div style={{ marginTop: 'var(--s-5)' }}>
+              <StatGroup
+                provenance="computed"
+                note={`Recomputed from the real coefficient matrix at lambda = ${state.lambda}.`}
+              >
               <Stat
                 label="Binary variables"
                 value={String(BINARY_VARIABLES)}
                 unit="8 positions x 6 families"
-                provenance="computed"
               />
               <Stat
                 label="Non-zero pair terms"
                 value={formatInt(qubo.quadratic.length)}
                 unit={`of a possible ${formatInt(PAIR_COUNT * ALPHABET_SIZE * ALPHABET_SIZE)}`}
                 help="One term for every (position pair, family pair) combination that the scoring model gives a non-zero coupling."
-                provenance="computed"
               />
               <Stat
                 label={METRIC_HELP.penalty.label}
                 value={qubo.penalty.toFixed(1)}
                 unit={METRIC_HELP.penalty.unit}
                 help={METRIC_HELP.penalty.plain}
-                provenance="computed"
               />
               <Stat
                 label="Largest coefficient"
                 value={maxAbs.toFixed(3)}
                 unit="absolute value"
                 help="Used to scale the colour ramp above. The penalty P is far larger than this, by design."
-                provenance="computed"
               />
+              </StatGroup>
             </div>
 
             {researcher ? (
@@ -513,7 +517,6 @@ function ScaleSection({ researcher }: { readonly researcher: boolean }): JSX.Ele
             value={formatInt(VALID_SEQUENCES)}
             unit="8 positions, 6 families"
             help="Small enough to enumerate exhaustively, which is what makes the optimum provable."
-            provenance="computed"
           />
           <Stat
             label="With all 20 amino acids"
@@ -534,7 +537,6 @@ function ScaleSection({ researcher }: { readonly researcher: boolean }): JSX.Ele
             value={String(BINARY_VARIABLES)}
             unit="8 x 6"
             help="Small by quantum-annealing standards. Current hardware handles thousands of variables, though connectivity, not count, is usually the real constraint."
-            provenance="computed"
           />
         </div>
 
@@ -960,103 +962,6 @@ function AboutSection({
             </p>
           ))}
         </div>
-      </Card>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ *
- * Honesty
- * ------------------------------------------------------------------ */
-function HonestySection(): JSX.Element {
-  const { state } = useStore();
-  const run = state.baseline;
-
-  return (
-    <section className="stack-lg">
-      <Card style={{ borderColor: 'var(--attention)' }}>
-        <h2 className="section-title">What this does and does not show</h2>
-        <p className="prose" style={{ marginTop: 'var(--s-3)' }}>
-          This section exists because the easiest way to oversell computational work is to let
-          the reader assume more than was done. Here is the full list of things this project
-          does not establish.
-        </p>
-
-        <div className="stack" style={{ marginTop: 'var(--s-5)' }}>
-          <Notice tone="honest" icon="!">
-            <strong>No quantum hardware. {HONESTY.noQuantum}.</strong>
-            <p style={{ marginTop: 'var(--s-1)' }}>{HONESTY.noQuantumDetail}</p>
-            {run ? (
-              <p className="mono faint" style={{ fontSize: 'var(--fs-xs)', marginTop: 'var(--s-2)' }}>
-                Your run recorded: quantumHardware = &ldquo;{run.quantumHardware}&rdquo;
-              </p>
-            ) : null}
-          </Notice>
-
-          <Notice tone="honest" icon="!">
-            <strong>No laboratory validation.</strong>
-            <p style={{ marginTop: 'var(--s-1)' }}>
-              {HONESTY.noLab} No peptide here has been synthesised, purified, or exposed to any
-              plastic. There is no measured binding constant, no adhesion test, no microscopy
-              and no spectroscopy anywhere in this project.
-            </p>
-          </Notice>
-
-          <Notice tone="honest" icon="!">
-            <strong>Not a model of degradation or recycling.</strong>
-            <p style={{ marginTop: 'var(--s-1)' }}>{HONESTY.noDegradation}</p>
-          </Notice>
-
-          <Notice tone="honest" icon="!">
-            <strong>A ranking score, not an affinity.</strong>
-            <p style={{ marginTop: 'var(--s-1)' }}>
-              {HONESTY.noBinding} {HONESTY.proxyScore}
-            </p>
-          </Notice>
-
-          <Notice tone="honest" icon="!">
-            <strong>Families, not amino acids.</strong>
-            <p style={{ marginTop: 'var(--s-1)' }}>{HONESTY.classNotResidue}</p>
-          </Notice>
-
-          <Notice tone="honest" icon="!">
-            <strong>Every molecular picture on this site is a diagram.</strong>
-            <p style={{ marginTop: 'var(--s-1)' }}>{HONESTY.conceptualVisual}</p>
-          </Notice>
-
-          <Notice tone="honest" icon="!">
-            <strong>The scoring model inherits its own limits.</strong>
-            <p style={{ marginTop: 'var(--s-1)' }}>
-              The energies come from one backbone conformation (bb1) of a published model, with
-              20 amino acids averaged into 6 families by arithmetic mean. Averaging discards
-              real chemical differences inside each family. A different backbone, a different
-              aggregation rule, or the full 20-letter alphabet could all change which design
-              wins. The result is a statement about this model, not about peptides.
-            </p>
-          </Notice>
-        </div>
-      </Card>
-
-      <Card>
-        <h3 style={{ fontSize: 'var(--fs-lg)' }}>What it does show</h3>
-        <ul className="stack-sm" style={{ marginTop: 'var(--s-3)', fontSize: 'var(--fs-sm)' }}>
-          <li>
-            A complete, reproducible search of a well-defined 1,679,616-design space, with the
-            optimum <em>proven</em> rather than estimated.
-          </li>
-          <li>
-            An exact mapping from that search onto a 48-variable QUBO, numerically verified in
-            your own browser, in the form quantum and classical annealers accept.
-          </li>
-          <li>
-            An honest measurement of how close a heuristic sampler gets to a known answer, with
-            its validity rate and seed reported.
-          </li>
-          <li>
-            A demonstration that the trade-off between target and off-target scores is real and
-            has a shape you can see and interrogate.
-          </li>
-        </ul>
       </Card>
 
       <Card>

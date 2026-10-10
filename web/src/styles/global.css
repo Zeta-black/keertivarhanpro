@@ -37,34 +37,9 @@ body {
   overflow-x: clip;
 }
 
-/* The scientific grid motif: a fixed, very low-contrast backdrop. */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -2;
-  background-image:
-    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
-  background-size: var(--grid-size) var(--grid-size);
-  pointer-events: none;
-}
-
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(ellipse 70% 55% at 18% 0%, rgba(66, 219, 234, 0.1), transparent 70%),
-    radial-gradient(ellipse 60% 50% at 88% 8%, rgba(149, 116, 245, 0.09), transparent 70%);
-  pointer-events: none;
-}
-
-:root[data-theme='light'] body::after,
-html:not([data-theme='dark']) body::after {
-  opacity: 0.55;
-}
+/* No decorative backdrop. The page ground is a flat surface so that the only
+   things competing for attention are the structures, the charts and the
+   numbers. Depth comes from borders and surface steps, not from glow. */
 
 img,
 picture,

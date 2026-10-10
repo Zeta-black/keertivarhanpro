@@ -222,6 +222,34 @@ export function Stat({
   );
 }
 
+/**
+ * A row of statistics that share a provenance.
+ *
+ * Repeating the same badge on every tile in a row says one thing four times
+ * and trains the reader to stop seeing it. The group states it once; an
+ * individual `Stat` keeps its own `provenance` prop for the case where one
+ * tile really does differ from its neighbours.
+ */
+export function StatGroup({
+  provenance,
+  note,
+  children,
+}: {
+  readonly provenance: Provenance;
+  readonly note?: string;
+  readonly children: ReactNode;
+}): JSX.Element {
+  return (
+    <div className="stat-group">
+      <div className="stat-group-head">
+        <ProvenanceBadge kind={provenance} detail={note} />
+        {note ? <span className="stat-group-note">{note}</span> : null}
+      </div>
+      <div className="grid-auto">{children}</div>
+    </div>
+  );
+}
+
 /** A change chip that knows which direction counts as an improvement. */
 export function DeltaChip({
   value,
@@ -386,49 +414,39 @@ export function LoadingState({
   );
 }
 
-/** A small orbital motif, reused so loading and empty states feel like one product. */
+/**
+ * The mark used by loading and empty states.
+ *
+ * Deliberately NOT an orbiting-electron atom: that motif is a picture of a
+ * physical model this project does not use, and an animated one implies
+ * activity that is not happening. This is an eight-cell row - the eight
+ * positions of a design - which is a shape the product actually means.
+ */
 export function OrbitGlyph({ spinning = false }: { readonly spinning?: boolean }): JSX.Element {
   return (
-    <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
-      <g
-        style={
-          spinning
-            ? { transformOrigin: '20px 20px', animation: 'orbit-spin 2.6s linear infinite' }
-            : undefined
-        }
-      >
-        <ellipse
-          cx="20"
-          cy="20"
-          rx="16"
-          ry="6.5"
-          stroke="var(--accent)"
-          strokeWidth="1.2"
-          opacity="0.55"
+    <svg width="72" height="18" viewBox="0 0 72 18" aria-hidden="true">
+      {Array.from({ length: 8 }, (_, i) => (
+        <rect
+          key={i}
+          x={i * 9}
+          y={3}
+          width={7}
+          height={12}
+          rx={1.5}
+          fill="var(--accent)"
+          opacity={spinning ? 0.25 : 0.4}
+          style={
+            spinning
+              ? {
+                  animation: `cell-pulse 1.3s ease-in-out ${i * 0.09}s infinite`,
+                }
+              : undefined
+          }
         />
-        <ellipse
-          cx="20"
-          cy="20"
-          rx="16"
-          ry="6.5"
-          stroke="var(--optimise)"
-          strokeWidth="1.2"
-          opacity="0.55"
-          transform="rotate(60 20 20)"
-        />
-        <ellipse
-          cx="20"
-          cy="20"
-          rx="16"
-          ry="6.5"
-          stroke="var(--success)"
-          strokeWidth="1.2"
-          opacity="0.55"
-          transform="rotate(120 20 20)"
-        />
-      </g>
-      <circle cx="20" cy="20" r="3.4" fill="var(--accent)" />
-      <style>{'@keyframes orbit-spin{to{transform:rotate(360deg)}}'}</style>
+      ))}
+      <style>
+        {'@keyframes cell-pulse{0%,100%{opacity:.22}50%{opacity:.85}}'}
+      </style>
     </svg>
   );
 }

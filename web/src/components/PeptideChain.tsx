@@ -14,7 +14,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { CLASS_INFO, LENGTH, type ClassInfo } from '../science/alphabet';
-import { HONESTY } from '../content/copy';
 
 export interface PeptideChainProps {
   readonly codes: number[];
@@ -238,7 +237,8 @@ export function ClassPalette({
         ))}
       </div>
       <p className="faint" style={{ fontSize: 'var(--fs-xs)', marginTop: 'var(--s-3)' }}>
-        {HONESTY.classNotResidue}
+        Each option is a FAMILY of amino acids. The letter on a block is one representative
+        member, for readability; the optimiser never distinguishes members within a family.
       </p>
     </div>
   );

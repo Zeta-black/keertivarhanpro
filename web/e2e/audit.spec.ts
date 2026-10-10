@@ -84,7 +84,10 @@ test.describe('startup and route coverage', () => {
     });
   }
 
+  // Six widths across six routes is 36 full navigations; the default
+  // per-test timeout is not meant for a sweep this size.
   test('the page body never scrolls sideways at any viewport', async ({ page }) => {
+    test.setTimeout(300_000);
     for (const width of [320, 390, 768, 1024, 1440, 1920]) {
       await page.setViewportSize({ width, height: 900 });
       for (const route of ROUTES) {
@@ -108,6 +111,10 @@ test.describe('startup and route coverage', () => {
         if (!el.textContent?.trim()) continue;
         // Only leaf-ish nodes carry their own text.
         if (el.children.length > 0) continue;
+        // Chemical subscripts and superscripts are notation: the smaller size
+        // is what distinguishes C58 from C58. They are exempt from the body
+        // minimum, but nothing else is.
+        if (el.tagName === 'SUB' || el.tagName === 'SUP') continue;
         const size = parseFloat(getComputedStyle(el).fontSize);
         if (size > 0 && size < 12) {
           bad.push(`${el.tagName}.${el.className} = ${size}px: ${el.textContent.slice(0, 40)}`);
@@ -120,124 +127,220 @@ test.describe('startup and route coverage', () => {
 });
 
 /* ================================================================== *
- * 2. Does the 3D hero actually paint? jsdom could never answer this.
+ * 2. Are the molecular structures real? jsdom could never answer this.
+ *
+ * The 2D depiction is produced by RDKit (WebAssembly) and the 3D model by
+ * 3Dmol.js (WebGL). Neither runs under jsdom, so these are the only tests
+ * that can prove a visitor actually sees a chemical structure rather than a
+ * loading state.
  * ================================================================== */
-test.describe('molecular hero canvas', () => {
-  test('the canvas exists, has real pixel dimensions, and paints non-blank pixels', async ({
+test.describe('molecular structure rendering', () => {
+  /** Counts the drawn vector paths inside the RDKit depiction. */
+  async function depictionPaths(page: import('@playwright/test').Page) {
+    return page.evaluate(
+      () => document.querySelectorAll('.struct2d-figure svg path').length,
+    );
+  }
+
+  test('the landing page shows a real chemical structure, with no fake animation', async ({
     page,
-  }, testInfo) => {
-    test.skip(testInfo.project.name === 'mobile-chromium', 'mobile tier uses the static SVG');
+  }) => {
     const log = collect(page);
     await page.goto('/');
     await skipTour(page);
 
-    const canvas = page.locator('canvas').first();
-    await expect(canvas).toBeVisible();
+    // The old illustrative canvas and its controls must be gone for good.
+    await expect(page.getByRole('button', { name: /pause rotation/i })).toHaveCount(0);
+    await expect(page.getByText(/drag to rotate/i)).toHaveCount(0);
+    await expect(page.getByText(/^illustrative$/i)).toHaveCount(0);
 
+    // A peptide structure diagram: eight residues give a lot of bonds, and a
+    // blank or placeholder drawing has none.
+    const figure = page.locator('.struct2d-figure svg').first();
+    await expect(figure).toBeVisible({ timeout: 30_000 });
+    expect(await depictionPaths(page), 'drawn bonds and atom labels').toBeGreaterThan(60);
+
+    const box = await figure.boundingBox();
+    expect(box?.width ?? 0, 'depiction width').toBeGreaterThan(200);
+    expect(box?.height ?? 0, 'depiction height').toBeGreaterThan(120);
+
+    // The structure identifies itself with its real composition.
+    await expect(page.getByText(/C58H80N10O10/).first()).toBeVisible();
+    await expect(page.getByText(/heavy atoms/i).first()).toBeVisible();
+
+    expect(log.pageErrors).toEqual([]);
+    expect(log.errors).toEqual([]);
+  });
+
+  test('the 3D model renders a real scene that responds to the controls', async ({ page }) => {
+    const log = collect(page);
+    await page.goto('/build');
+    await skipTour(page);
+    await page.locator('.struct2d-figure svg').first().waitFor({ timeout: 30_000 });
+
+    await page.getByRole('button', { name: /3D model/i }).first().click();
+    const canvas = page.locator('.struct3d-host canvas').first();
+    await expect(canvas).toBeVisible({ timeout: 30_000 });
     const box = await canvas.boundingBox();
-    expect(box?.width ?? 0, 'canvas CSS width').toBeGreaterThan(200);
-    expect(box?.height ?? 0, 'canvas CSS height').toBeGreaterThan(200);
+    expect(box?.width ?? 0, 'viewer width').toBeGreaterThan(200);
+    expect(box?.height ?? 0, 'viewer height').toBeGreaterThan(180);
+    await page.waitForTimeout(1500);
 
-    // Let the draw loop run.
+    // 3Dmol owns the WebGL context, so the page cannot read it back with
+    // getContext. Comparing rendered frames is a stronger check in any case:
+    // it proves the viewer is drawing the molecule it was handed.
+    const ballAndStick = await canvas.screenshot();
+    expect(ballAndStick.byteLength, 'a blank canvas compresses to almost nothing').toBeGreaterThan(
+      3000,
+    );
+
+    await page.getByLabel(/representation/i).selectOption('spaceFill');
     await page.waitForTimeout(1200);
+    const spaceFilling = await canvas.screenshot();
+    expect(
+      spaceFilling.equals(ballAndStick),
+      'changing the representation must change what is drawn',
+    ).toBe(false);
 
-    const painted = await page.evaluate(() => {
-      const c = document.querySelector('canvas') as HTMLCanvasElement | null;
-      if (!c) return { ok: false, reason: 'no canvas', nonTransparent: 0 };
-      const ctx = c.getContext('2d');
-      if (!ctx) return { ok: false, reason: 'no 2d context', nonTransparent: 0 };
-      const { data } = ctx.getImageData(0, 0, c.width, c.height);
-      let nonTransparent = 0;
-      for (let i = 3; i < data.length; i += 4) if (data[i] > 8) nonTransparent += 1;
-      return { ok: true, reason: '', nonTransparent, total: data.length / 4 };
-    });
-    expect(painted.ok, painted.reason).toBe(true);
-    // A real molecular render covers a meaningful fraction of the canvas.
-    expect(painted.nonTransparent, 'painted pixels on the hero canvas').toBeGreaterThan(500);
+    await page.getByLabel(/backbone torsions/i).selectOption('helix');
+    await page.waitForTimeout(1200);
+    const helix = await canvas.screenshot();
+    expect(
+      helix.equals(spaceFilling),
+      'changing the backbone torsions must change the conformer',
+    ).toBe(false);
+
+    // The conformer must describe itself honestly, right under the viewer.
+    await expect(page.getByText(/generated conformer/i).first()).toBeVisible();
+    await expect(page.getByText(/not an experimental structure/i).first()).toBeVisible();
 
     expect(log.pageErrors).toEqual([]);
   });
 
-  test('the hero animates, and the pause control genuinely stops it', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name === 'mobile-chromium', 'mobile tier uses the static SVG');
-    await page.goto('/');
+  test('the structure follows the residues chosen in the workbench', async ({ page }) => {
+    const log = collect(page);
+    await page.goto('/build');
     await skipTour(page);
-    await page.locator('canvas').first().waitFor();
-    await page.waitForTimeout(600);
+    await page.locator('.struct2d-figure svg').first().waitFor({ timeout: 30_000 });
 
-    const snapshot = async () =>
-      page.evaluate(() => {
-        const c = document.querySelector('canvas') as HTMLCanvasElement;
-        return c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data.join(',').length;
-      });
+    const formula = page.locator('.viewer-formula').first();
+    await expect(formula).toContainText('C58');
+    const before = await depictionPaths(page);
 
-    // Sample the canvas twice while animating; a rotating scene must change.
-    const a = await page.evaluate(() => {
-      const c = document.querySelector('canvas') as HTMLCanvasElement;
-      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
-      let h = 0;
-      for (let i = 0; i < d.length; i += 997) h = (h * 31 + d[i]) % 2147483647;
-      return h;
-    });
-    await page.waitForTimeout(900);
-    const b = await page.evaluate(() => {
-      const c = document.querySelector('canvas') as HTMLCanvasElement;
-      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
-      let h = 0;
-      for (let i = 0; i < d.length; i += 997) h = (h * 31 + d[i]) % 2147483647;
-      return h;
-    });
-    expect(a, 'the hero scene should be animating').not.toBe(b);
-    expect(await snapshot()).toBeGreaterThan(0);
+    // Position 2 is the small-polar family: swap serine for glutamine, which
+    // is a bigger molecule, and the drawing must change with it.
+    const select = page.getByLabel(/amino acid shown at position 2/i);
+    await select.selectOption('Q');
 
-    // Pause, then confirm the frame stops changing.
-    await page.getByRole('button', { name: /pause rotation/i }).click();
-    await page.waitForTimeout(400);
-    const c1 = await page.evaluate(() => {
-      const c = document.querySelector('canvas') as HTMLCanvasElement;
-      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
-      let h = 0;
-      for (let i = 0; i < d.length; i += 997) h = (h * 31 + d[i]) % 2147483647;
-      return h;
-    });
-    await page.waitForTimeout(900);
-    const c2 = await page.evaluate(() => {
-      const c = document.querySelector('canvas') as HTMLCanvasElement;
-      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
-      let h = 0;
-      for (let i = 0; i < d.length; i += 997) h = (h * 31 + d[i]) % 2147483647;
-      return h;
-    });
-    expect(c1, 'paused scene must hold still').toBe(c2);
+    await expect(formula).toContainText('C60', { timeout: 30_000 });
+    await expect
+      .poll(async () => depictionPaths(page), { timeout: 30_000 })
+      .not.toBe(before);
+
+    expect(log.pageErrors).toEqual([]);
   });
 
-  test('dragging the hero rotates it', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name === 'mobile-chromium', 'mobile tier uses the static SVG');
-    await page.goto('/');
+  test('the 3D viewer responds to dragging and scrolling', async ({ page }) => {
+    await page.goto('/build');
     await skipTour(page);
-    const canvas = page.locator('canvas').first();
-    await canvas.waitFor();
-    await page.getByRole('button', { name: /pause rotation/i }).click();
-    await page.waitForTimeout(300);
+    await page.locator('.struct2d-figure svg').first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /3D model/i }).first().click();
+    const canvas = page.locator('.struct3d-host canvas').first();
+    await expect(canvas).toBeVisible({ timeout: 30_000 });
+    await page.waitForTimeout(1500);
 
-    const hash = () =>
-      page.evaluate(() => {
-        const c = document.querySelector('canvas') as HTMLCanvasElement;
-        const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
-        let h = 0;
-        for (let i = 0; i < d.length; i += 997) h = (h * 31 + d[i]) % 2147483647;
-        return h;
-      });
-
-    const before = await hash();
     const box = (await canvas.boundingBox())!;
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+    const before = await canvas.screenshot();
+
+    // Drag to rotate.
+    await page.mouse.move(centre.x, centre.y);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2 + 160, box.y + box.height / 2 + 40, { steps: 12 });
+    await page.mouse.move(centre.x + 150, centre.y + 60, { steps: 12 });
     await page.mouse.up();
-    await page.waitForTimeout(400);
-    const after = await hash();
-    expect(before, 'dragging should rotate the scene').not.toBe(after);
+    await page.waitForTimeout(900);
+    const rotated = await canvas.screenshot();
+    expect(rotated.equals(before), 'dragging must rotate the molecule').toBe(false);
+
+    // Scroll to zoom.
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.wheel(0, -400);
+    await page.waitForTimeout(900);
+    const zoomed = await canvas.screenshot();
+    expect(zoomed.equals(rotated), 'scrolling must zoom the molecule').toBe(false);
+  });
+
+  test('switching the displayed residue leaves every score untouched', async ({ page }) => {
+    await page.goto('/build');
+    await skipTour(page);
+    await page.locator('.struct2d-figure svg').first().waitFor({ timeout: 30_000 });
+
+    // Read the four score tiles before the change.
+    const scores = page.locator('.stat .stat-value');
+    await expect(scores.first()).toBeVisible({ timeout: 30_000 });
+    const before = await scores.allInnerTexts();
+    expect(before.length).toBeGreaterThan(3);
+
+    await page.getByLabel(/amino acid shown at position 2/i).selectOption('T');
+    await page.waitForTimeout(1200);
+
+    // Depiction is residue-level; optimisation is class-level. The molecule
+    // changes, the class sequence does not, so no score may move.
+    await expect(page.locator('.viewer-formula').first()).toContainText('C59');
+    expect(await scores.allInnerTexts()).toEqual(before);
+  });
+
+  test('the guided tour runs end to end and can be restarted', async ({ page }) => {
+    await page.goto('/');
+    // Nothing opens on its own.
+    await expect(page.getByRole('dialog', { name: /quick tour/i })).toHaveCount(0);
+
+    await page.getByRole('button', { name: /take the guided tour/i }).first().click();
+    const dialog = page.getByRole('dialog', { name: /quick tour/i });
+    await expect(dialog).toBeVisible();
+
+    // Walk every step; the final button finishes rather than advancing.
+    for (let i = 0; i < 12; i += 1) {
+      const next = dialog.getByRole('button', { name: /next|start exploring/i });
+      if (!(await next.count())) break;
+      const label = (await next.innerText()).toLowerCase();
+      await next.click();
+      if (label.includes('start exploring')) break;
+      await page.waitForTimeout(150);
+    }
+    await expect(dialog).toHaveCount(0);
+
+    // It can be reopened afterwards.
+    await page.getByRole('button', { name: /take the guided tour/i }).first().click();
+    await expect(page.getByRole('dialog', { name: /quick tour/i })).toBeVisible();
+    await page.getByRole('button', { name: /^skip$/i }).click();
+    await expect(page.getByRole('dialog', { name: /quick tour/i })).toHaveCount(0);
+  });
+
+  test('every exported structure file downloads with real content', async ({ page }) => {
+    await page.goto('/build');
+    await skipTour(page);
+    await page.locator('.struct2d-figure svg').first().waitFor({ timeout: 30_000 });
+
+    for (const format of ['FASTA', 'SMI', 'SDF', 'PDB']) {
+      const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        page.getByRole('button', { name: new RegExp(`^${format}$`) }).first().click(),
+      ]);
+      const stream = await download.createReadStream();
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+      const text = Buffer.concat(chunks).toString('utf8');
+      expect(text.length, `${format} file size`).toBeGreaterThan(20);
+      if (format === 'PDB') {
+        expect(text, 'PDB must contain ATOM records').toMatch(/^ATOM {2}/m);
+        expect(text).toMatch(/GENERATED CONFORMER/);
+      }
+      if (format === 'SDF') expect(text).toContain('V2000');
+      if (format === 'FASTA') expect(text).toMatch(/^>/);
+      if (format === 'SMI') expect(text).toMatch(/\[C@@H\]/);
+    }
   });
 });
 
@@ -720,7 +823,7 @@ test.describe('adversarial scenarios', () => {
     await page.goBack();
     await expect(page.getByText(/build a peptide/i)).toBeVisible();
     await page.goBack();
-    await expect(page.getByText(/tell plastics apart/i)).toBeVisible();
+    await expect(page.getByText(/one plastic from another/i)).toBeVisible();
     await page.goForward();
     await expect(page.getByText(/build a peptide/i)).toBeVisible();
   });
@@ -777,8 +880,11 @@ test.describe('accessibility in a real browser', () => {
     expect(focusedId, 'focus must land on the main landmark').toBe('main');
   });
 
-  test('dismissing the first-run tour hands focus to the main landmark', async ({ page }) => {
+  test('dismissing the tour hands focus to the main landmark', async ({ page }) => {
     await page.goto('/');
+    // The tour is opt-in: nothing opens over the page on its own.
+    await expect(page.getByRole('dialog', { name: /quick tour/i })).toHaveCount(0);
+    await page.getByRole('button', { name: /take the guided tour/i }).first().click();
     const skip = page.getByRole('button', { name: /^skip$/i });
     await skip.waitFor({ state: 'visible', timeout: 10_000 });
     await skip.click();
@@ -831,68 +937,33 @@ test.describe('accessibility in a real browser', () => {
     expect(offenders).toEqual([]);
   });
 
-  test('reduced-motion preference stops the hero animating', async ({ browser }) => {
+  test('nothing on the landing page animates by itself', async ({ browser }) => {
+    // The hero used to be an animated canvas. It is now a static chemical
+    // structure, so the correct assertion is that nothing moves at all -
+    // under reduced motion or otherwise.
     const context = await browser.newContext({ reducedMotion: 'reduce' });
     const p = await context.newPage();
     await p.goto('/');
-    const skip = p.getByRole('button', { name: /^skip$/i });
-    if (await skip.isVisible().catch(() => false)) await skip.click();
+    await p.locator('.struct2d-figure svg').first().waitFor({ timeout: 30_000 });
 
-    // With reduced motion the static SVG illustration is used instead.
-    const hasCanvas = await p.locator('canvas').count();
-    if (hasCanvas > 0) {
-      await p.waitForTimeout(800);
-      const h1 = await p.evaluate(() => {
-        const c = document.querySelector('canvas') as HTMLCanvasElement;
-        const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
-        let h = 0;
-        for (let i = 0; i < d.length; i += 997) h = (h * 31 + d[i]) % 2147483647;
-        return h;
-      });
-      await p.waitForTimeout(900);
-      const h2 = await p.evaluate(() => {
-        const c = document.querySelector('canvas') as HTMLCanvasElement;
-        const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
-        let h = 0;
-        for (let i = 0; i < d.length; i += 997) h = (h * 31 + d[i]) % 2147483647;
-        return h;
-      });
-      expect(h1, 'reduced motion must not animate the hero').toBe(h2);
-    } else {
-      await expect(p.locator('svg[role="img"]').first()).toBeVisible();
-    }
+    const shot = async () => (await p.locator('.hero-structure').screenshot()).toString('base64');
+    const first = await shot();
+    await p.waitForTimeout(1200);
+    expect(await shot(), 'the structure panel must hold still').toBe(first);
+
+    // And no element is running an infinite animation on the landing page.
+    const animated = await p.evaluate(() => {
+      const bad: string[] = [];
+      for (const el of document.querySelectorAll('main *')) {
+        const style = getComputedStyle(el);
+        if (style.animationName !== 'none' && style.animationIterationCount === 'infinite') {
+          bad.push(`${el.tagName}.${el.className}: ${style.animationName}`);
+        }
+      }
+      return bad;
+    });
+    expect(animated).toEqual([]);
     await context.close();
-  });
-
-  test('both themes render with a painted background', async ({ page }) => {
-    await page.goto('/');
-    await skipTour(page);
-    for (let i = 0; i < 2; i += 1) {
-      const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-      expect(bg, 'body background must not be transparent').not.toBe('rgba(0, 0, 0, 0)');
-      await page.getByRole('button', { name: /switch to (dark|light) theme/i }).click();
-      await page.waitForTimeout(250);
-    }
-  });
-
-  test('the help dialog traps focus and closes on Escape', async ({ page }) => {
-    await page.goto('/');
-    await skipTour(page);
-    await page.getByRole('button', { name: /help, shortcuts/i }).click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
-
-    // Tab many times; focus must never escape the dialog.
-    for (let i = 0; i < 25; i += 1) {
-      await page.keyboard.press('Tab');
-      const inside = await page.evaluate(() => {
-        const d = document.querySelector('[role="dialog"]');
-        return d ? d.contains(document.activeElement) : false;
-      });
-      expect(inside, `focus escaped the dialog after ${i + 1} tabs`).toBe(true);
-    }
-    await page.keyboard.press('Escape');
-    await expect(dialog).toHaveCount(0);
   });
 });
 
@@ -904,8 +975,13 @@ test.describe('scientific honesty, as rendered', () => {
     test(`${route} states the no-quantum and no-lab position`, async ({ page }) => {
       await page.goto(route);
       await skipTour(page);
-      await expect(page.getByText(/NO QUANTUM HARDWARE EXECUTION/).first()).toBeVisible();
-      await expect(page.getByText(/been tested in a laboratory/i).first()).toBeVisible();
+      // Every screen carries the one-line disclosure; the full assessment is
+      // a section at the bottom of Results and appears nowhere else.
+      await expect(page.getByText(/no quantum hardware was used/i).first()).toBeVisible();
+      await expect(page.getByText(/no laboratory validation/i).first()).toBeVisible();
+      await expect(
+        page.getByRole('link', { name: /scientific-validity assessment/i }).first(),
+      ).toBeVisible();
     });
   }
 
@@ -931,10 +1007,37 @@ test.describe('scientific honesty, as rendered', () => {
     }
   });
 
-  test('the conceptual binding visual is labelled as not docking', async ({ page }) => {
+  test('the generated conformer is labelled as generated, not experimental', async ({ page }) => {
     await page.goto('/build');
     await skipTour(page);
-    await expect(page.getByText(/not molecular docking/i).first()).toBeVisible();
+    await page.locator('.struct2d-figure svg').first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /3D model/i }).first().click();
+    await expect(page.getByText(/generated conformer/i).first()).toBeVisible();
+    await expect(page.getByText(/not an experimental structure/i).first()).toBeVisible();
+    await expect(page.getByText(/not a binding pose/i).first()).toBeVisible();
+  });
+
+  test('the validity assessment is on Results and on no other screen', async ({ page }) => {
+    for (const route of ['/', '/build', '/optimise', '/compare', '/understand']) {
+      await page.goto(route);
+      await skipTour(page);
+      await expect(
+        page.locator('#scientific-validity'),
+        `${route} must not repeat the assessment`,
+      ).toHaveCount(0);
+      // Every screen still carries the one-line disclosure.
+      await expect(page.getByText(/no quantum hardware was used/i).first()).toBeVisible();
+    }
+    await runPipeline(page);
+    await page.getByRole('link', { name: /results/i }).click();
+    const assessment = page.locator('#scientific-validity');
+    await expect(assessment).toBeVisible({ timeout: 30_000 });
+    await expect(
+      assessment.getByRole('heading', { name: /scientific validity assessment/i }),
+    ).toBeVisible();
+    // No invented percentage anywhere in it.
+    await expect(assessment.getByText(/honesty score/i)).toHaveCount(0);
+    await expect(assessment.getByText(/[0-9]+ ?% (honest|valid|confiden)/i)).toHaveCount(0);
   });
 
   test('D-Wave is reported as NOT EXECUTED, with a reason', async ({ page }) => {

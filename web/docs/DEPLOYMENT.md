@@ -33,6 +33,25 @@ If `npm install` warns that `esbuild` has an unapproved install script, run
 `npm approve-scripts esbuild && npm rebuild esbuild`. Vite cannot start without
 the esbuild binary.
 
+## Generated assets (run automatically, but worth knowing about)
+
+Two build steps generate files that are not committed in full:
+
+| Step | Script | Produces | Runs from |
+| --- | --- | --- | --- |
+| RDKit runtime | `scripts/sync-rdkit.mjs` | `public/rdkit/RDKit_minimal.{js,wasm}` — copied out of `node_modules`, ~7 MB | `predev`, `prebuild`, `pretest` |
+| Landing depiction | `scripts/prerender-depictions.mjs` | `src/generated/depictions.ts` — the reference structure diagram, rendered at build time by the same RDKit build the browser uses | `predev`, `prebuild` |
+
+`src/generated/depictions.ts` **is** committed, because `tsc --noEmit` runs
+before `vite build` in CI and would fail without it. `public/rdkit/` is not:
+it is a vendored binary that `npm ci` already pins through the lockfile.
+
+The wasm binary is only fetched when a visitor opens a structure the
+pre-rendered diagram does not cover, so it is never on the critical path for a
+first page view. Hosts that read `public/_headers` get a one-year immutable
+cache rule for it; on GitHub Pages, which ignores that file, the browser's own
+heuristics apply and the binary is re-validated rather than re-downloaded.
+
 ## Production build
 
 ```bash

@@ -172,7 +172,7 @@ describe('accessibility (axe-core)', () => {
     await renderAndSettle();
     if (id !== 'discover') {
       await go(SCREENS[id].nav);
-      await screen.findByText(SCREENS[id].title);
+      await screen.findByText(SCREENS[id].title, undefined, { timeout: LAZY_TIMEOUT });
     }
     // Let debounced scoring settle so the scanned DOM is the populated one.
     await waitFor(() => expect(document.querySelectorAll('main *').length).toBeGreaterThan(5));
@@ -200,8 +200,15 @@ describe('accessibility (axe-core)', () => {
     expect(results.violations.length, describeViolations(results.violations)).toBe(0);
   });
 
-  it('has no axe violations while the first-run tour is open', async () => {
+  it('has no axe violations while the tour is open', async () => {
     render(<App />);
+    // The tour is opt-in: it is opened from the header, never on its own.
+    const open = await screen.findByRole('button', { name: /take the guided tour/i }, {
+      timeout: LAZY_TIMEOUT,
+    });
+    await act(async () => {
+      fireEvent.click(open);
+    });
     await screen.findByRole('button', { name: /^skip$/i }, { timeout: LAZY_TIMEOUT });
     const results = await scan();
     expect(results.violations.length, describeViolations(results.violations)).toBe(0);
@@ -213,7 +220,7 @@ describe('accessibility (axe-core)', () => {
       await renderAndSettle();
       if (id !== 'discover') {
         await go(SCREENS[id].nav);
-        await screen.findByText(SCREENS[id].title);
+        await screen.findByText(SCREENS[id].title, undefined, { timeout: LAZY_TIMEOUT });
       }
       const h1s = document.querySelectorAll('h1');
       expect(h1s.length, `${id} should have exactly one h1`).toBe(1);
@@ -236,7 +243,7 @@ describe('accessibility (axe-core)', () => {
       await renderAndSettle();
       if (id !== 'discover') {
         await go(SCREENS[id].nav);
-        await screen.findByText(SCREENS[id].title);
+        await screen.findByText(SCREENS[id].title, undefined, { timeout: LAZY_TIMEOUT });
       }
       const graphics = document.querySelectorAll('canvas, svg[role="img"], [role="img"]');
       for (const node of graphics) {

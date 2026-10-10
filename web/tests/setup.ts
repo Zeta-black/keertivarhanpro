@@ -42,9 +42,14 @@ afterAll(() => {
 
 /* ------------------------------------------------------------------ *
  * jsdom gaps the app relies on.
+ *
+ * A few suites run in the node environment (the RDKit cross-check needs
+ * WebAssembly and a real `require`), so there is no `window` to patch there.
  * ------------------------------------------------------------------ */
 
-if (!window.matchMedia) {
+const hasDom = typeof window !== 'undefined';
+
+if (hasDom && !window.matchMedia) {
   window.matchMedia = ((query: string) => ({
     matches: false,
     media: query,
@@ -79,16 +84,18 @@ if (!globalThis.IntersectionObserver) {
   } as unknown as typeof IntersectionObserver;
 }
 
-// jsdom DEFINES these and then throws "Not implemented", so they must be
-// replaced unconditionally rather than only when absent.
-Element.prototype.scrollIntoView = () => {};
-window.scrollTo = (() => {}) as typeof window.scrollTo;
+if (hasDom) {
+  // jsdom DEFINES these and then throws "Not implemented", so they must be
+  // replaced unconditionally rather than only when absent.
+  Element.prototype.scrollIntoView = () => {};
+  window.scrollTo = (() => {}) as typeof window.scrollTo;
 
-/**
- * jsdom has no canvas backend. Returning null is the honest answer and is
- * exactly what MolecularScene is written to tolerate: it skips its draw loop
- * and the page still renders. Returning a fake context would hide a real
- * crash-on-null bug, so null it is.
- */
-HTMLCanvasElement.prototype.getContext = (() =>
-  null) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+  /**
+   * jsdom has no canvas backend and no WebGL. Returning null is the honest
+   * answer, and every viewer in the app is written to tolerate it: the 3D
+   * viewer reports that it cannot render and offers the 2D structure instead.
+   * Returning a fake context would hide a real crash-on-null bug.
+   */
+  HTMLCanvasElement.prototype.getContext = (() =>
+    null) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+}

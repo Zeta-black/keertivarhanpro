@@ -26,7 +26,11 @@ import {
   formatScore,
 } from '../components/primitives';
 import { SequenceGlyph } from '../components/PeptideChain';
-import { CANDIDATE_LABEL_HELP, HONESTY, METRIC_HELP, SCREENS } from '../content/copy';
+import { Beginner, PlainNote, Researcher, useMode } from '../app/mode';
+import { CANDIDATE_LABEL_HELP, METRIC_HELP, SCREENS } from '../content/copy';
+import { groupInt } from '../content/format';
+import { defaultResidues, residueDegeneracy } from '../chem/peptide';
+import { MoleculeViewer } from '../viz/MoleculeViewer';
 import { CLASS_INFO } from '../science/alphabet';
 import { BENCHMARK_LAMBDAS } from '../science/objective';
 import { PLASTIC_INFO } from '../science/potts';
@@ -99,6 +103,23 @@ export function CompareScreen(): JSX.Element {
               </div>
             }
           />
+          <Beginner>
+            <p className="plain-note">
+              Once a run finishes you will see the ten best designs in order, a chart showing how
+              the winner changes as you move the priority dial, and a picture of the actual
+              molecule for whichever design you select.
+            </p>
+          </Beginner>
+          <Researcher>
+            <p className="section-lede" style={{ marginTop: 'var(--s-4)' }}>
+              After a run this screen carries: the top-N candidate table with objective, all
+              three plastic scores, both margins, composition flags and the lexicographic
+              sequence index; the exact lambda sweep (each point re-solved over the full space,
+              never interpolated); a sampled Pareto front of PET against worst off-target; and
+              the solver comparison with validity rate, gap to the proven optimum and wall-clock
+              timings measured on this device.
+            </p>
+          </Researcher>
         </div>
       </div>
     );
@@ -106,7 +127,11 @@ export function CompareScreen(): JSX.Element {
 
   const podium = run.candidates.slice(0, 3);
   const sweep = state.sweep ?? run.sweep;
+  const { researcher } = useMode();
   const selected = state.selectedCandidate ?? run.candidates[0];
+  // The molecule shown for a ranked candidate uses the documented
+  // representative of each class, because a class sequence is not a molecule.
+  const selectedResidues = useMemo(() => defaultResidues(selected.codes), [selected.codes]);
 
   return (
     <div className="screen">
@@ -233,10 +258,25 @@ export function CompareScreen(): JSX.Element {
         </section>
 
         {/* ---------------- TABLE ---------------- */}
-        <section style={{ marginTop: 'var(--s-7)' }}>
+        <section className="section">
           <div className="spread" style={{ flexWrap: 'wrap', gap: 'var(--s-3)' }}>
             <div>
               <h2 className="section-title">All {run.candidates.length} top candidates</h2>
+          <Beginner>
+            <p className="plain-note">
+              Ranked by the objective, so row 1 is the best design the search found at the current
+              priority. &ldquo;Margin&rdquo; is the gap between the PET score and whichever
+              unwanted plastic scored highest &mdash; bigger is better, and negative means the
+              design prefers the wrong plastic.
+            </p>
+          </Beginner>
+          <Researcher>
+            <p className="section-lede">
+              Sorted client-side; the underlying values are the exact solver output. PE and PP
+              columns and the lexicographic sequence index are shown in this mode. Objective =
+              -PET + lambda(PE + PP) at lambda = {run.config.lambda}.
+            </p>
+          </Researcher>
               <p className="screen-purpose">
                 Sort, search and select. Selecting a row updates the charts below.
               </p>
@@ -326,7 +366,22 @@ export function CompareScreen(): JSX.Element {
                           </button>
                         </th>
                       ))}
+                      {researcher ? (
+                        <>
+                          <th scope="col" className="num">
+                            PE
+                          </th>
+                          <th scope="col" className="num">
+                            PP
+                          </th>
+                        </>
+                      ) : null}
                       <th scope="col">Design</th>
+                      {researcher ? (
+                        <th scope="col" className="num">
+                          Index
+                        </th>
+                      ) : null}
                       <th scope="col">Notes</th>
                       <th scope="col">
                         <span className="sr-only">Actions</span>
@@ -358,6 +413,16 @@ export function CompareScreen(): JSX.Element {
                         >
                           {candidate.metrics.marginWorst.toFixed(2)}
                         </td>
+                        {researcher ? (
+                          <>
+                            <td className="num" style={{ color: 'var(--c-pe)' }}>
+                              {candidate.scores.PE.toFixed(3)}
+                            </td>
+                            <td className="num" style={{ color: 'var(--c-pp)' }}>
+                              {candidate.scores.PP.toFixed(3)}
+                            </td>
+                          </>
+                        ) : null}
                         <td>
                           <span className="row" style={{ gap: 'var(--s-2)' }}>
                             <SequenceGlyph codes={candidate.codes} size="sm" />
@@ -366,6 +431,9 @@ export function CompareScreen(): JSX.Element {
                             </code>
                           </span>
                         </td>
+                        {researcher ? (
+                          <td className="num faint">{candidate.index}</td>
+                        ) : null}
                         <td>
                           <span className="faint" style={{ fontSize: 'var(--fs-xs)' }}>
                             {candidate.metrics.warnings
@@ -407,8 +475,12 @@ export function CompareScreen(): JSX.Element {
         </section>
 
         {/* ---------------- SWEEP ---------------- */}
-        <section style={{ marginTop: 'var(--s-7)' }}>
+        <section className="section">
           <h2 className="section-title">How the winner changes with the priority dial</h2>
+          <PlainNote>
+            As the dial rises, designs that also stick to the other two plastics get pushed down
+            the ranking. Where the line steps, the best design has changed to a different one.
+          </PlainNote>
           <p className="screen-purpose" style={{ marginBottom: 'var(--s-4)' }}>
             Each point is solved exactly over all {formatInt(run.searchSpace.validSequences)}{' '}
             designs at that priority. Nothing here is interpolated.
@@ -523,7 +595,7 @@ export function CompareScreen(): JSX.Element {
         </section>
 
         {/* ---------------- PARETO ---------------- */}
-        <section style={{ marginTop: 'var(--s-7)' }}>
+        <section className="section">
           <div className="spread" style={{ flexWrap: 'wrap', gap: 'var(--s-3)' }}>
             <div>
               <h2 className="section-title">The trade-off, drawn out</h2>
@@ -581,7 +653,7 @@ export function CompareScreen(): JSX.Element {
         </section>
 
         {/* ---------------- SOLVERS ---------------- */}
-        <section style={{ marginTop: 'var(--s-7)' }}>
+        <section className="section">
           <h2 className="section-title">How the search methods compared</h2>
           <p className="screen-purpose" style={{ marginBottom: 'var(--s-4)' }}>
             All of these were given the same objective and the same constraints. Brute force is
@@ -721,32 +793,40 @@ export function CompareScreen(): JSX.Element {
             ))}
           </div>
 
-          <Notice tone="honest" icon="!" >
-            <strong>{HONESTY.noQuantum}</strong>
-            <p style={{ marginTop: 'var(--s-1)' }}>{HONESTY.noQuantumDetail}</p>
-          </Notice>
+          <p className="faint" style={{ fontSize: 'var(--fs-xs)', marginTop: 'var(--s-3)' }}>
+            Every runtime here was measured on this device, in this browser. The quantum-annealer
+            row is a formulation, not an execution; what that does and does not establish is set
+            out in the scientific-validity assessment at the bottom of Results.
+          </p>
         </section>
 
         {/* ---------------- SELECTED DETAIL ---------------- */}
-        <section style={{ marginTop: 'var(--s-7)' }}>
-          <h2 className="section-title">Selected design in detail</h2>
-          <Card>
-            <div className="spread" style={{ flexWrap: 'wrap', gap: 'var(--s-4)' }}>
-              <div style={{ minWidth: 0 }}>
-                <SequenceGlyph codes={selected.codes} showResidues />
-                <p className="mono" style={{ fontSize: 'var(--fs-xs)', marginTop: 'var(--s-2)' }}>
-                  {selected.classSequence}
-                </p>
+        <section className="section">
+          <header className="section-head">
+            <h2 className="section-title">Selected design in detail</h2>
+            <p className="section-lede">
+              Composition, metrics and the molecule this class sequence stands for when each
+              family is read as its documented representative.
+            </p>
+          </header>
+          <div className="compare-detail">
+            <Card>
+              <div className="spread" style={{ flexWrap: 'wrap', gap: 'var(--s-4)' }}>
+                <div style={{ minWidth: 0 }}>
+                  <SequenceGlyph codes={selected.codes} showResidues />
+                  <p className="mono" style={{ fontSize: 'var(--fs-xs)', marginTop: 'var(--s-2)' }}>
+                    {selected.classSequence}
+                  </p>
+                </div>
+                <Button
+                  onClick={() => {
+                    dispatch({ type: 'SET_DRAFT', codes: selected.codes });
+                    navigate('build');
+                  }}
+                >
+                  Open in the builder
+                </Button>
               </div>
-              <Button
-                onClick={() => {
-                  dispatch({ type: 'SET_DRAFT', codes: selected.codes });
-                  navigate('build');
-                }}
-              >
-                Open in the builder
-              </Button>
-            </div>
 
             <div className="scroll-x" style={{ marginTop: 'var(--s-4)' }}>
               <table className="table">
@@ -791,7 +871,8 @@ export function CompareScreen(): JSX.Element {
             </div>
 
             <p className="faint" style={{ fontSize: 'var(--fs-xs)', marginTop: 'var(--s-3)' }}>
-              {HONESTY.classNotResidue}
+              The right-hand column lists every amino acid in each family. The optimiser chose the
+              family, not the member.
             </p>
 
             <div className="grid-auto" style={{ marginTop: 'var(--s-4)' }}>
@@ -817,8 +898,25 @@ export function CompareScreen(): JSX.Element {
                   </div>
                 );
               })}
+              </div>
+            </Card>
+
+            <div>
+              <MoleculeViewer
+                residues={selectedResidues}
+                variant="workbench"
+                height={330}
+                initialMode="2d"
+                exportLabel={`qbindselect-rank${selected.rank}`}
+              />
+              <p className="faint" style={{ fontSize: 'var(--fs-xs)', marginTop: 'var(--s-3)' }}>
+                One class sequence stands for {groupInt(residueDegeneracy(selected.codes))}{' '}
+                distinct molecules. This is the one built from the documented representative of
+                each family; choose other members in the builder. The optimiser ranked the family
+                sequence, not this molecule.
+              </p>
             </div>
-          </Card>
+          </div>
         </section>
       </div>
     </div>

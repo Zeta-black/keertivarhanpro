@@ -99,6 +99,12 @@
   --c-charged-neg: #5bb7f5;
   --c-charged-pos: #f5796f;
 
+  /* ---- CPK element colours, for the molecular viewers' legend ---- */
+  --el-c: #9aa7b4;
+  --el-n: #5b8dff;
+  --el-o: #ff6b6b;
+  --el-s: #e8d44d;
+
   /* ---- Data provenance badges ---- */
   --prov-computed: var(--teal-400);
   --prov-sampled: var(--cyan-400);
@@ -159,7 +165,9 @@
   --shadow-sm: 0 1px 2px rgba(2, 8, 16, 0.5);
   --shadow-md: 0 4px 16px rgba(2, 8, 16, 0.5);
   --shadow-lg: 0 16px 48px rgba(2, 8, 16, 0.6);
-  --shadow-glow: 0 0 0 1px rgba(66, 219, 234, 0.25), 0 8px 32px rgba(66, 219, 234, 0.12);
+  /* An accent ring, not a glow: used to mark the one element that is
+     currently the subject, never for decoration. */
+  --shadow-glow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
 
   /* ---- Focus ring. Must stay visible on every surface. ---- */
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
@@ -177,10 +185,6 @@
   --max-prose: 68ch;
   --nav-h: 60px;
   --touch-min: 44px;
-
-  /* ---- Scientific grid motif ---- */
-  --grid-line: rgba(66, 219, 234, 0.055);
-  --grid-size: 46px;
 
   color-scheme: dark light;
 }
@@ -234,12 +238,15 @@
   --prov-illustrative: #986514;
   --prov-unavailable: var(--text-faint);
 
+  --el-c: #44566b;
+  --el-n: #1f4fd8;
+  --el-o: #c62828;
+  --el-s: #8a7a00;
+
   --shadow-sm: 0 1px 2px rgba(14, 34, 56, 0.08);
   --shadow-md: 0 4px 16px rgba(14, 34, 56, 0.1);
   --shadow-lg: 0 16px 48px rgba(14, 34, 56, 0.14);
-  --shadow-glow: 0 0 0 1px rgba(14, 147, 166, 0.3), 0 8px 32px rgba(14, 147, 166, 0.12);
-
-  --grid-line: rgba(14, 94, 120, 0.07);
+  --shadow-glow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
 
   color-scheme: light;
 }
@@ -289,12 +296,15 @@
     --prov-illustrative: #986514;
     --prov-unavailable: var(--text-faint);
 
+    --el-c: #44566b;
+    --el-n: #1f4fd8;
+    --el-o: #c62828;
+    --el-s: #8a7a00;
+
     --shadow-sm: 0 1px 2px rgba(14, 34, 56, 0.08);
     --shadow-md: 0 4px 16px rgba(14, 34, 56, 0.1);
     --shadow-lg: 0 16px 48px rgba(14, 34, 56, 0.14);
-    --shadow-glow: 0 0 0 1px rgba(14, 147, 166, 0.3), 0 8px 32px rgba(14, 147, 166, 0.12);
-
-    --grid-line: rgba(14, 94, 120, 0.07);
+    --shadow-glow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
 
     color-scheme: light;
   }

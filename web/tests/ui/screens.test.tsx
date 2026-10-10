@@ -12,28 +12,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 
 import App from '../../src/App';
 import { NAV_ORDER, SCREENS } from '../../src/content/copy';
-import { CLASS_INFO, VALID_SEQUENCES, classSequence, indexToCodes } from '../../src/science/alphabet';
-import { candidateMetrics, objective, objectiveParts } from '../../src/science/objective';
-import { contributions, scoreAll } from '../../src/science/potts';
-import {
-  addOneHotConstraint,
-  coefficientMass,
-  combineObjective,
-  maxAbsCoefficient,
-  quadraticEntries,
-  quboToIsing,
-  safePenalty,
-} from '../../src/science/qubo';
-import { realModel } from '../helpers/model';
-import type {
-  CandidateRecord,
-  RunRecord,
-  WorkerRequest,
-  WorkerResponse,
-} from '../../src/workers/protocol';
+import { CLASS_INFO, classSequence } from '../../src/science/alphabet';
+import { scoreAll } from '../../src/science/potts';
+import { combineObjective, safePenalty } from '../../src/science/qubo';
 import { STAGES } from '../../src/workers/protocol';
-
-const model = realModel();
+import { installWorkerMock, liveWorkers, makeRunRecord, model } from './worker-mock';
 
 /**
  * Every screen is a separate lazily-imported chunk, so a first render has to
@@ -43,403 +26,8 @@ const model = realModel();
  */
 const LAZY_TIMEOUT = 15_000;
 
-/** Every Worker the app creates in a test, so tests can drive them. */
-const liveWorkers: StubWorker[] = [];
-
-/**
- * A Worker stand-in. It records what the app sent and replies with real
- * computed payloads. `autoRespond: false` lets a test hold a reply back and
- * assert the loading state, or reply out of order to prove staleness handling.
- */
-class StubWorker implements Partial<Worker> {
-  readonly sent: WorkerRequest[] = [];
-  private listeners: ((event: MessageEvent<WorkerResponse>) => void)[] = [];
-  terminated = false;
-  autoRespond = true;
-
-  constructor() {
-    liveWorkers.push(this);
-  }
-
-  addEventListener(type: string, handler: EventListenerOrEventListenerObject): void {
-    if (type === 'message') {
-      this.listeners.push(handler as (event: MessageEvent<WorkerResponse>) => void);
-    }
-  }
-
-  removeEventListener(): void {}
-
-  terminate(): void {
-    this.terminated = true;
-    this.listeners = [];
-  }
-
-  postMessage(message: WorkerRequest): void {
-    this.sent.push(message);
-    if (!this.autoRespond) return;
-    const reply = respondTo(message);
-    for (const r of reply) this.emit(r);
-  }
-
-  /** Push a response into the app as if the worker produced it. */
-  emit(response: WorkerResponse): void {
-    for (const listener of this.listeners) {
-      listener({ data: response } as MessageEvent<WorkerResponse>);
-    }
-  }
-
-  lastOfKind<K extends WorkerRequest['kind']>(kind: K): Extract<WorkerRequest, { kind: K }> | null {
-    for (let i = this.sent.length - 1; i >= 0; i -= 1) {
-      if (this.sent[i].kind === kind) return this.sent[i] as Extract<WorkerRequest, { kind: K }>;
-    }
-    return null;
-  }
-}
-
-function toCandidate(index: number, lambda: number, rank: number): CandidateRecord {
-  const codes = indexToCodes(index);
-  const scores = scoreAll(codes, model.flat);
-  const m = candidateMetrics(codes, scores);
-  return {
-    index,
-    codes,
-    classSequence: classSequence(codes),
-    representative: codes.map((c) => CLASS_INFO[c].representative).join(''),
-    scores,
-    objective: objective(scores, lambda),
-    rank,
-    metrics: {
-      meanOffTarget: m.meanOffTarget,
-      worstOffTarget: m.worstOffTarget,
-      marginMean: m.marginMean,
-      marginWorst: m.marginWorst,
-      aromaticFraction: m.aromaticFraction,
-      hydrophobicFraction: m.hydrophobicFraction,
-      polarFraction: m.polarFraction,
-      netChargeClassBalance: m.netChargeClassBalance,
-      warnings: m.warnings,
-    },
-  };
-}
-
-/** A small but structurally complete run record, built from real scores. */
-function makeRunRecord(runId: string, lambda: number, seed: number): RunRecord {
-  const indices = [0, 7, 42, 1000, 55555, 123456, 777777, 1000000, 1234567, 1679615];
-  const candidates = indices
-    .map((i) => toCandidate(i, lambda, 0))
-    .sort((a, b) => a.objective - b.objective)
-    .map((c, i) => ({ ...c, rank: i + 1 }));
-
-  const sweep = [0, 0.5, 1, 2, 5].map((lam) => {
-    const q = combineObjective(model.flat, lam);
-    const best = indices
-      .map((i) => toCandidate(i, lam, 1))
-      .sort((a, b) => a.objective - b.objective)[0];
-    return {
-      lambda: lam,
-      best,
-      penalty: safePenalty(q),
-      runtimeMs: 12.5,
-      optimumHits: 1,
-    };
-  });
-
-  return {
-    runId,
-    config: {
-      lambda,
-      seed,
-      sweepLambdas: [0, 0.5, 1, 2, 5],
-      topN: 10,
-      surrogate: { alpha: 1e-6, trainSize: 600, validationSize: 200, testSize: 200, enabled: true },
-      annealing: { reads: 4, sweeps: 20, runs: 2, enabled: true },
-      penaltyMultiplier: 2,
-      tolerance: 1e-8,
-    },
-    mode: 'live',
-    candidates,
-    sweep,
-    solvers: [
-      {
-        solver: 'Brute force (exact)',
-        lambda,
-        status: 'EXECUTED',
-        bestObjective: candidates[0].objective,
-        classSequence: candidates[0].classSequence,
-        validityRate: 1,
-        successRate: 1,
-        runtimeMs: 180,
-        seed: null,
-        reads: VALID_SEQUENCES,
-        medianBestEnergy: null,
-        stdBestEnergy: null,
-        note: 'Checked every valid sequence.',
-        exact: true,
-      },
-      {
-        solver: 'Simulated annealing',
-        lambda,
-        status: 'EXECUTED',
-        bestObjective: candidates[1].objective,
-        classSequence: candidates[1].classSequence,
-        validityRate: 0.42,
-        successRate: 0,
-        runtimeMs: 95,
-        seed,
-        reads: 8,
-        medianBestEnergy: candidates[1].objective,
-        stdBestEnergy: 3.2,
-        note: '2 runs x 4 reads x 20 sweeps.',
-        exact: false,
-      },
-      {
-        solver: 'D-Wave quantum annealer',
-        lambda,
-        status: 'NOT EXECUTED',
-        bestObjective: null,
-        classSequence: null,
-        validityRate: null,
-        successRate: null,
-        runtimeMs: null,
-        seed: null,
-        reads: null,
-        medianBestEnergy: null,
-        stdBestEnergy: null,
-        note: 'NO QUANTUM HARDWARE EXECUTION.',
-        exact: false,
-      },
-    ],
-    surrogates: [
-      {
-        plastic: 'PET',
-        alpha: 1e-6,
-        seed,
-        train: { count: 600, r2: 1, rmse: 4e-8, mae: 3e-8, maxAbsError: 9e-8 },
-        validation: { count: 200, r2: 1, rmse: 5e-8, mae: 4e-8, maxAbsError: 1e-7 },
-        test: { count: 200, r2: 1, rmse: 5e-8, mae: 4e-8, maxAbsError: 1e-7 },
-        splitsDisjoint: true,
-        fitMs: 410,
-      },
-    ],
-    verify: {
-      sampleSize: 250,
-      seed,
-      maxQuboObjectiveError: 7.1e-13,
-      maxPenaltyResidue: 3.6e-12,
-      encodeDecodeRoundTrips: 250,
-      invalidTested: 250,
-      invalidCorrectlyPenalised: 250,
-      penaltyBound: 16953.26,
-      lambda,
-      runtimeMs: 31,
-    },
-    stats: {
-      PET: { mean: -63.6, std: 52.8, min: -256.4, max: 41 },
-      PE: { mean: -64, std: 50.5, min: -280.2, max: 19.2 },
-      PP: { mean: -77.3, std: 54.2, min: -349.1, max: 24.2 },
-    },
-    searchSpace: { positions: 8, classes: 6, binaryVariables: 48, validSequences: VALID_SEQUENCES },
-    timings: Object.fromEntries(STAGES.map((s, i) => [s.id, 10 + i * 5])),
-    totalMs: 1820,
-    environment: { userAgent: 'test', hardwareConcurrency: 8, deviceMemoryGb: 8 },
-    quantumHardware: 'NO QUANTUM HARDWARE EXECUTION',
-    modelSource: model.meta.source,
-    startedAtIso: '2026-10-09T00:00:00.000Z',
-  };
-}
-
-/** Real replies, computed with the real science core. */
-function respondTo(message: WorkerRequest): WorkerResponse[] {
-  switch (message.kind) {
-    case 'init':
-      return [
-        {
-          kind: 'ready',
-          runId: message.runId,
-          modelSource: model.meta.source,
-          orientation: model.meta.orientation,
-        },
-      ];
-
-    case 'score': {
-      const { codes, lambda } = message;
-      const scores = scoreAll(codes, model.flat);
-      const m = candidateMetrics(codes, scores);
-      const parts = objectiveParts(scores, lambda);
-      const breakdown = (p: 'PET' | 'PE' | 'PP') => {
-        const c = contributions(codes, model.flat[p]);
-        return {
-          positions: c.positions,
-          pairs: c.pairs,
-          linearTotal: c.linearTotal,
-          pairTotal: c.pairTotal,
-        };
-      };
-      return [
-        {
-          kind: 'score',
-          runId: message.runId,
-          payload: {
-            codes: [...codes],
-            classSequence: classSequence(codes),
-            representative: codes.map((c) => CLASS_INFO[c].representative).join(''),
-            scores,
-            objective: objective(scores, lambda),
-            objectiveParts: {
-              targetTerm: parts.targetTerm,
-              offTargetSum: parts.offTargetSum,
-              penaltyTerm: parts.penaltyTerm,
-              lambda: parts.lambda,
-              total: parts.total,
-            },
-            metrics: {
-              meanOffTarget: m.meanOffTarget,
-              worstOffTarget: m.worstOffTarget,
-              marginMean: m.marginMean,
-              marginWorst: m.marginWorst,
-              aromaticFraction: m.aromaticFraction,
-              hydrophobicFraction: m.hydrophobicFraction,
-              polarFraction: m.polarFraction,
-              netChargeClassBalance: m.netChargeClassBalance,
-              warnings: m.warnings,
-            },
-            contributions: { PET: breakdown('PET'), PE: breakdown('PE'), PP: breakdown('PP') },
-            rankInSpace: null,
-            percentile: null,
-          },
-        },
-      ];
-    }
-
-    case 'run': {
-      const stages: WorkerResponse[] = STAGES.flatMap((s) => [
-        {
-          kind: 'stage' as const,
-          runId: message.runId,
-          stage: s.id,
-          status: 'active' as const,
-          fraction: s.measurable ? 0.5 : null,
-          note: `working on ${s.title}`,
-          elapsedMs: 5,
-        },
-        {
-          kind: 'stage' as const,
-          runId: message.runId,
-          stage: s.id,
-          status: 'done' as const,
-          fraction: 1,
-          note: `${s.title} complete`,
-          elapsedMs: 12,
-        },
-      ]);
-      return [
-        ...stages,
-        {
-          kind: 'run',
-          runId: message.runId,
-          record: makeRunRecord(message.runId, message.config.lambda, message.config.seed),
-        },
-      ];
-    }
-
-    case 'quboAt': {
-      const base = combineObjective(model.flat, message.lambda);
-      const mass = coefficientMass(base);
-      const ising = quboToIsing(base);
-      return [
-        {
-          kind: 'qubo',
-          runId: message.runId,
-          payload: {
-            lambda: message.lambda,
-            penalty: safePenalty(base, message.penaltyMultiplier),
-            penaltyMultiplier: message.penaltyMultiplier,
-            offset: base.offset,
-            linear: Array.from(base.linear),
-            quadratic: quadraticEntries(base).map(
-              (e) => [e.u, e.v, e.value] as [number, number, number],
-            ),
-            maxAbsCoefficient: maxAbsCoefficient(base),
-            linearMass: mass.linear,
-            quadraticMass: mass.quadratic,
-            ising: { hMin: -1, hMax: 1, jMin: -1, jMax: 1, constant: ising.constant },
-          },
-        },
-      ];
-    }
-
-    case 'verify': {
-      const base = combineObjective(model.flat, 1);
-      const penalty = safePenalty(base);
-      addOneHotConstraint(base, penalty);
-      return [
-        {
-          kind: 'verify',
-          runId: message.runId,
-          report: {
-            sampleSize: message.sampleSize,
-            seed: message.seed,
-            maxQuboObjectiveError: 7.1e-13,
-            maxPenaltyResidue: 3.6e-12,
-            encodeDecodeRoundTrips: message.sampleSize,
-            invalidTested: message.sampleSize,
-            invalidCorrectlyPenalised: message.sampleSize,
-            penaltyBound: penalty,
-            lambda: 1,
-            runtimeMs: 24,
-          },
-        },
-      ];
-    }
-
-    case 'solveAt':
-      return [
-        {
-          kind: 'solveAt',
-          runId: message.runId,
-          lambda: message.lambda,
-          candidates: [toCandidate(0, message.lambda, 1)],
-        },
-      ];
-
-    case 'pareto':
-      return [
-        {
-          kind: 'pareto',
-          runId: message.runId,
-          lambda: message.lambda,
-          points: [0, 7, 42, 1000].map((index, i) => {
-            const s = scoreAll(indexToCodes(index), model.flat);
-            return {
-              index,
-              pet: s.PET,
-              worstOff: Math.max(s.PE, s.PP),
-              objective: objective(s, message.lambda),
-              onFrontier: i === 0,
-            };
-          }),
-          sampled: 4,
-        },
-      ];
-
-    case 'cancel':
-      return [{ kind: 'cancelled', runId: message.runId, atStage: null }];
-
-    default:
-      return [];
-  }
-}
-
 beforeEach(() => {
-  liveWorkers.length = 0;
-  vi.stubGlobal(
-    'Worker',
-    class {
-      constructor() {
-        return new StubWorker() as unknown as Worker;
-      }
-    },
-  );
+  installWorkerMock();
   window.history.pushState({}, '', '/');
   try {
     localStorage.clear();
@@ -462,12 +50,31 @@ async function renderApp() {
   return utils;
 }
 
-/** Dismiss the first-run tour so it does not overlay assertions. */
+/**
+ * The tour is opt-in and never opens itself, so nothing normally needs
+ * dismissing. Kept as a guard so the call sites still read as "make sure no
+ * overlay is in the way".
+ */
 async function skipTour() {
-  const skip = await screen.findByRole('button', { name: /^skip$/i }, { timeout: 3000 }).catch(
-    () => null,
+  const skip = screen.queryByRole('button', { name: /^skip$/i });
+  if (skip) {
+    await act(async () => {
+      fireEvent.click(skip);
+    });
+  }
+}
+
+/** Opens the opt-in tour from the header. */
+async function openTour() {
+  const open = await screen.findByRole(
+    'button',
+    { name: /take the guided tour/i },
+    { timeout: LAZY_TIMEOUT },
   );
-  if (skip) fireEvent.click(skip);
+  await act(async () => {
+    fireEvent.click(open);
+  });
+  return screen.findByRole('dialog', { name: /quick tour/i });
 }
 
 async function gotoScreen(nav: string) {
@@ -487,10 +94,13 @@ describe('shell and navigation', () => {
       await screen.findByRole('heading', { level: 1 }, { timeout: LAZY_TIMEOUT }),
     ).toBeInTheDocument();
     // The 30-second test: problem, what it does, what is next, all present.
-    expect(screen.getByText(/tell plastics apart/i)).toBeInTheDocument();
+    expect(screen.getByText(/one plastic from another/i)).toBeInTheDocument();
+    expect(screen.getByText(/^the problem$/i)).toBeInTheDocument();
     expect(screen.getAllByText(/1,679,616/).length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: /explore discovery/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /understand the science/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /open the design workbench/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /run the exhaustive search/i }),
+    ).toBeInTheDocument();
   });
 
   it('exposes a skip link as an early tab stop', async () => {
@@ -516,8 +126,12 @@ describe('shell and navigation', () => {
       await renderApp();
       await skipTour();
       await gotoScreen(SCREENS[id].nav);
-      // Each screen must show its own plain-English title.
-      expect(await screen.findByText(SCREENS[id].title)).toBeInTheDocument();
+      // Each screen must show its own plain-English title. The timeout is the
+      // lazy-chunk one: these screens are code-split and the workbench chunk
+      // carries the chemistry layer with it.
+      expect(
+        await screen.findByText(SCREENS[id].title, undefined, { timeout: LAZY_TIMEOUT }),
+      ).toBeInTheDocument();
     },
   );
 
@@ -617,8 +231,14 @@ describe('shell and navigation', () => {
  * First-run tour
  * ================================================================== */
 describe('first-run tour', () => {
-  it('appears on a first visit and can be skipped', async () => {
+  it('never opens itself, and opens from the header when asked', async () => {
     await renderApp();
+    // A dialog over the first thing a visitor looks at costs more than it
+    // teaches, so the tour must not appear unprompted.
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: /quick tour/i })).not.toBeInTheDocument(),
+    );
+    await openTour();
     const skip = await screen.findByRole('button', { name: /^skip$/i }, { timeout: 3000 });
     expect(screen.getByRole('dialog', { name: /quick tour/i })).toBeInTheDocument();
     await act(async () => {
@@ -631,6 +251,7 @@ describe('first-run tour', () => {
 
   it('advances through every step and finishes', async () => {
     await renderApp();
+    await openTour();
     await screen.findByRole('button', { name: /^skip$/i }, { timeout: 3000 });
     for (let i = 0; i < 10; i += 1) {
       const next = screen.queryByRole('button', { name: /next|start exploring/i });
@@ -798,7 +419,7 @@ describe('Build screen', () => {
       expect(screen.getByText(classSequence([2, 3, 0, 4, 2, 2, 1, 2]))).toBeInTheDocument(),
     );
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /reset to reference design/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^reset$/i }));
     });
     await waitFor(() =>
       expect(screen.getByText(classSequence([2, 3, 0, 0, 2, 2, 1, 2]))).toBeInTheDocument(),
@@ -821,8 +442,42 @@ describe('Build screen', () => {
   it('states that families are not individual amino acids', async () => {
     await openBuild();
     expect(
-      screen.getAllByText(/FAMILIES of amino acids, not individual amino acids/i).length,
+      screen.getAllByText(/FAMILY of amino acids|not one amino acid/i).length,
     ).toBeGreaterThan(0);
+  });
+
+  it('lets a residue be chosen from the members of its position class', async () => {
+    await openBuild();
+    // Position 2 of the reference design is SMALL_POLAR: G, S, T, N, Q.
+    const select = (await screen.findByLabelText(
+      /amino acid shown at position 2.*small water-friendly/i,
+    )) as HTMLSelectElement;
+    expect(select.value).toBe('S');
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['G', 'S', 'T', 'N', 'Q']);
+  });
+
+  it('keeps the class-level scores unchanged when the displayed residue changes', async () => {
+    await openBuild();
+    const readScores = () =>
+      screen
+        .getAllByText(/dimensionless model score/i)
+        .map((node) => node.parentElement?.textContent ?? '')
+        .join('|');
+    await waitFor(() => expect(readScores()).toMatch(/-?\d+\.\d+/), { timeout: LAZY_TIMEOUT });
+    const before = readScores();
+
+    const select = (await screen.findByLabelText(
+      /amino acid shown at position 2.*small water-friendly/i,
+    )) as HTMLSelectElement;
+    await act(async () => {
+      fireEvent.change(select, { target: { value: 'T' } });
+    });
+
+    // The class sequence is untouched, so every score must be identical:
+    // depiction is residue-level, optimisation is class-level.
+    expect(select.value).toBe('T');
+    expect(screen.getAllByText(classSequence([2, 3, 0, 0, 2, 2, 1, 2])).length).toBeGreaterThan(0);
+    expect(readScores()).toBe(before);
   });
 
   it('runs the guided challenge and tracks the margin', async () => {
@@ -851,22 +506,38 @@ describe('Build screen', () => {
     );
   });
 
-  it('switches the conceptual binding surface between the three plastics', async () => {
+  it('shows the real per-position contribution chart, not a conceptual drawing', async () => {
     await openBuild();
-    const ppButton = await screen.findByRole('button', { name: /PP — tubs and containers/i });
-    await act(async () => {
-      fireEvent.click(ppButton);
-    });
-    expect(ppButton).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByText(/PP surface \(schematic\)/i)).toBeInTheDocument();
+    const chart = await screen.findByRole(
+      'img',
+      { name: /one-body score contribution by position/i },
+      { timeout: LAZY_TIMEOUT },
+    );
+    // The description carries the actual numbers, so the chart is readable
+    // without sight and cannot drift away from the model.
+    const description = chart.querySelector('desc')?.textContent ?? '';
+    expect(description).toMatch(/position 1 \(.+?\): PET -?\d/);
+    expect(description).toMatch(/position 8/);
   });
 
-  it('labels the binding visual as a conceptual illustration', async () => {
+  it('offers a keyboard-reachable control for every position beside the chart', async () => {
     await openBuild();
-    expect(
-      screen.getAllByText(/not molecular docking/i).length,
-      'the conceptual-illustration disclaimer must be present',
-    ).toBeGreaterThan(0);
+    await screen.findByRole(
+      'img',
+      { name: /one-body score contribution by position/i },
+      { timeout: LAZY_TIMEOUT },
+    );
+    const group = screen.getByRole('group', { name: /inspect one position/i });
+    expect(within(group).getAllByRole('button')).toHaveLength(8);
+  });
+
+  it('reports the molecular formula and mass of the structure it draws', async () => {
+    await openBuild();
+    // LSWWLLFL built by condensation; cross-checked against RDKit in tests/chem.
+    await waitFor(() => expect(screen.getAllByText(/C58H80N10O10/).length).toBeGreaterThan(0), {
+      timeout: LAZY_TIMEOUT,
+    });
+    expect(screen.getAllByText(/1077\.3/).length).toBeGreaterThan(0);
   });
 });
 
@@ -1094,22 +765,29 @@ describe('Compare screen', () => {
  * Understand screen
  * ================================================================== */
 describe('Understand screen', () => {
-  async function openUnderstand() {
+  async function openUnderstand(section?: RegExp) {
     await renderApp();
     await skipTour();
     await gotoScreen(SCREENS.understand.nav);
-    await screen.findByText(SCREENS.understand.title);
+    await screen.findByText(SCREENS.understand.title, undefined, { timeout: LAZY_TIMEOUT });
+    // The screen opens on "What is quantum here?", because that is the first
+    // question anyone asks. Tests that want another section say so.
+    if (section) {
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: section }));
+      });
+    }
   }
 
   it('answers "why 48 switches" with an interactive 8 x 6 grid', async () => {
-    await openUnderstand();
+    await openUnderstand(/why 48 switches/i);
     expect(screen.getByText(/why are there 48 switches/i)).toBeInTheDocument();
     const switches = screen.getAllByRole('button', { name: /^switch \d+: position/i });
     expect(switches).toHaveLength(48);
   });
 
   it('shows the constraint being violated when an extra switch is turned on', async () => {
-    await openUnderstand();
+    await openUnderstand(/why 48 switches/i);
     // Position 1's chosen family is index 2; turning on index 0 breaks the row.
     const extra = screen.getByRole('button', {
       name: /^switch 0: position 1, large aromatic ring/i,
@@ -1190,17 +868,15 @@ describe('Understand screen', () => {
     expect(screen.getByText(/Scale \(P1\)/)).toBeInTheDocument();
   });
 
-  it('states every limitation in the honesty section', async () => {
+  it('no longer carries a dedicated honesty tab, and says where it went', async () => {
     await openUnderstand();
+    // The assessment is consolidated at the bottom of Results; a panel shown on
+    // every screen stops being read.
+    expect(screen.queryByRole('button', { name: /what this does not show/i })).toBeNull();
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /what this does not show/i }));
+      fireEvent.click(screen.getByRole('button', { name: /about this project/i }));
     });
-    expect(await screen.findByRole('heading', { name: /what this does and does not show/i })).toBeInTheDocument();
-    expect(screen.getByText(/no laboratory validation/i)).toBeInTheDocument();
-    expect(screen.getByText(/not a model of degradation or recycling/i)).toBeInTheDocument();
-    expect(screen.getByText(/a ranking score, not an affinity/i)).toBeInTheDocument();
-    expect(screen.getByText(/families, not amino acids/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/NO QUANTUM HARDWARE EXECUTION/i).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/Scientific validity assessment/i)).toBeInTheDocument();
   });
 });
 

@@ -1,18 +1,24 @@
 /**
- * SCREEN B - Build & Explore.
+ * SCREEN 2 - Build & Explore. The design workbench.
  *
- * The flagship interaction. Every edit calls the real scorer and the before/after
- * comparison is computed from two real scored states, never estimated.
+ * Two things are on screen at once and they are deliberately different kinds
+ * of object:
  *
- * If the worker cannot score (model still loading, or a worker failure), only
- * the score-dependent panels are disabled and they say why. The builder itself
- * keeps working, because editing a sequence does not require the model.
+ *   LEFT   the eight-position CLASS sequence, which is what the optimiser
+ *          searches and what every score on this page is computed from.
+ *   RIGHT  a real MOLECULE, built from one concrete amino acid per position,
+ *          drawn by RDKit in 2D and by 3Dmol.js in 3D.
+ *
+ * Changing a class re-scores the design. Changing which member of a class is
+ * displayed rebuilds the molecule and changes no score at all - that is
+ * enforced by the reducer, not by convention, and the page says so once.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { useRouter } from '../app/router';
-import { useDraftScoring, useReducedMotion } from '../app/hooks';
+import { useDraftScoring } from '../app/hooks';
+import { Beginner, Equation, PlainNote, Researcher, useMode } from '../app/mode';
 import {
   Button,
   Card,
@@ -23,34 +29,37 @@ import {
   ProvenanceBadge,
   ScreenHeader,
   Stat,
-  formatScore,
   formatInt,
+  formatScore,
 } from '../components/primitives';
 import { ClassPalette, PeptideChain, SequenceGlyph } from '../components/PeptideChain';
+import { ResiduePicker, ResidueSequenceReadout } from '../components/ResiduePicker';
 import {
   CANDIDATE_LABEL_HELP,
   CHALLENGE,
-  HONESTY,
   METRIC_HELP,
   SCREENS,
   describeScoreChange,
 } from '../content/copy';
-import { CLASS_INFO, LENGTH, classSequence } from '../science/alphabet';
-import { PLASTIC_INFO, type Plastic } from '../science/potts';
-import { REFERENCE_CODES, useStore } from '../state/store';
-import { encodeShareState } from '../state/persistence';
-import { BindingConcept } from '../viz/BindingConcept';
-import { ScoreBars } from '../viz/charts';
 import { groupInt } from '../content/format';
+import { buildPeptide, residueDegeneracy } from '../chem/peptide';
+import { residueFor } from '../chem/residues';
+import { CLASS_INFO, LENGTH, classSequence } from '../science/alphabet';
+import { PLASTIC_INFO } from '../science/potts';
+import { encodeShareState } from '../state/persistence';
+import { REFERENCE_CODES, useStore } from '../state/store';
+import { ContributionChart } from '../viz/ContributionChart';
+import { MoleculeViewer } from '../viz/MoleculeViewer';
+import { ScoreBars } from '../viz/charts';
 
 export function BuildScreen(): JSX.Element {
   const { state, dispatch } = useStore();
   const { navigate } = useRouter();
-  const reducedMotion = useReducedMotion();
+  const { researcher } = useMode();
   useDraftScoring();
 
   const [armed, setArmed] = useState<number | null>(null);
-  const [surface, setSurface] = useState<Plastic>('PET');
+  const [focus, setFocus] = useState<number | null>(null);
   const [challengeStart, setChallengeStart] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -65,6 +74,19 @@ export function BuildScreen(): JSX.Element {
     [state.draftCodes, comparison],
   );
 
+  const peptide = useMemo(() => {
+    try {
+      return buildPeptide(state.draftResidues);
+    } catch {
+      return null;
+    }
+  }, [state.draftResidues]);
+
+  const degeneracy = useMemo(
+    () => residueDegeneracy(state.draftCodes),
+    [state.draftCodes],
+  );
+
   const onPlace = useCallback(
     (position: number, classIndex: number) => {
       dispatch({ type: 'SET_POSITION', position, classIndex });
@@ -72,13 +94,12 @@ export function BuildScreen(): JSX.Element {
     [dispatch],
   );
 
-  // Reset-to-reference, undo/redo and challenge tracking all operate on real
-  // scored values, so the challenge cannot be "won" by a rounding artefact.
-  useEffect(() => {
-    if (challengeStart === null && scoreMatchesDraft && score) {
-      // nothing to do; the challenge is armed explicitly by the user
-    }
-  }, [challengeStart, scoreMatchesDraft, score]);
+  const onResidue = useCallback(
+    (position: number, residue: string) => {
+      dispatch({ type: 'SET_RESIDUE', position, residue });
+    },
+    [dispatch],
+  );
 
   const shareUrl =
     typeof window === 'undefined'
@@ -98,6 +119,14 @@ export function BuildScreen(): JSX.Element {
           objective: score.objective - previous.objective,
         }
       : null;
+
+  const perPosition = scoreMatchesDraft
+    ? {
+        PET: score.contributions.PET.positions,
+        PE: score.contributions.PE.positions,
+        PP: score.contributions.PP.positions,
+      }
+    : null;
 
   return (
     <div className="screen">
@@ -124,9 +153,7 @@ export function BuildScreen(): JSX.Element {
               >
                 Redo
               </Button>
-              <Button onClick={() => dispatch({ type: 'RESET_DRAFT' })}>
-                Reset to reference design
-              </Button>
+              <Button onClick={() => dispatch({ type: 'RESET_DRAFT' })}>Reset</Button>
               <Button
                 onClick={() => {
                   navigator.clipboard
@@ -136,89 +163,252 @@ export function BuildScreen(): JSX.Element {
                   window.setTimeout(() => setCopied(false), 2200);
                 }}
               >
-                {copied ? 'Link copied' : 'Copy a link to this design'}
+                {copied ? 'Link copied' : 'Copy link'}
               </Button>
             </>
           }
         />
 
-        {/* ---------------- BUILDER ---------------- */}
-        <Card raised>
-          <div className="spread" style={{ alignItems: 'flex-start', marginBottom: 'var(--s-4)' }}>
-            <div>
-              <h2 style={{ fontSize: 'var(--fs-lg)' }}>Your design</h2>
-              <p className="muted" style={{ fontSize: 'var(--fs-sm)', marginTop: 'var(--s-1)' }}>
-                Eight positions. Drag a family from below, or tap a family then a position, or
-                focus a position and press <kbd>1</kbd>&ndash;<kbd>6</kbd>.
-              </p>
-            </div>
-            <ProvenanceBadge kind="computed" />
+        {/* ================= WORKBENCH ================= */}
+        <div className="workbench">
+          {/* ---- Editor column ---- */}
+          <div className="workbench-editor">
+            <Card raised>
+              <div className="panel-head">
+                <h2>Class sequence</h2>
+                <p>
+                  What the optimiser searches. Drag a family onto a position, tap a family then a
+                  position, or focus a position and press <kbd>1</kbd>&ndash;<kbd>6</kbd>.
+                </p>
+              </div>
+
+              <div style={{ padding: 'var(--s-3) 0' }}>
+                <PeptideChain
+                  codes={state.draftCodes}
+                  onChange={onPlace}
+                  changedPositions={changedPositions}
+                  armedClass={armed}
+                  onConsumeArmed={() => setArmed(null)}
+                />
+              </div>
+
+              <PlainNote>
+                Each of the eight boxes holds one <em>family</em> of amino acid, not one amino
+                acid. The optimiser chooses families because that makes the whole space small
+                enough to check completely.
+              </PlainNote>
+
+              <div className="panel-meta">
+                <code>{classSequence(state.draftCodes)}</code>
+                <span>
+                  {changedPositions.length === 0
+                    ? 'Identical to the reference design'
+                    : `${changedPositions.length} of ${LENGTH} positions changed from the reference`}
+                </span>
+              </div>
+
+              <div style={{ marginTop: 'var(--s-5)' }}>
+                <h3 className="panel-subhead">
+                  Building-block families
+                  <span className="panel-subhead-note">
+                    {armed === null
+                      ? 'Select one, then choose a position'
+                      : `${CLASS_INFO[armed].name} armed — now choose a position`}
+                  </span>
+                </h3>
+                <ClassPalette armedClass={armed} onArm={setArmed} />
+              </div>
+            </Card>
+
+            <Card style={{ marginTop: 'var(--s-4)' }}>
+              <div className="panel-head">
+                <h2>Residues shown in the structure</h2>
+                <p>
+                  A family is not one amino acid. Pick which member of each family the molecule on
+                  the right is built from. This changes the chemistry drawn and{' '}
+                  <strong>changes none of the scores</strong>, because the model only ever sees the
+                  family.
+                </p>
+              </div>
+              <ResiduePicker
+                codes={state.draftCodes}
+                residues={state.draftResidues}
+                onChange={onResidue}
+                focusPosition={focus}
+                onFocusPosition={setFocus}
+              />
+              <div className="panel-meta" style={{ marginTop: 'var(--s-3)' }}>
+                <ResidueSequenceReadout residues={state.draftResidues} />
+                <span>
+                  This class sequence stands for {groupInt(degeneracy)} distinct molecules
+                  <InfoTip
+                    title="Why more than one molecule?"
+                    body="Each of the eight positions is a family of amino acids, so one class sequence corresponds to the product of the family sizes. The optimiser scores the family sequence; the structure needs one specific member per position."
+                  />
+                </span>
+              </div>
+            </Card>
           </div>
 
-          <div style={{ padding: 'var(--s-4) 0' }}>
-            <PeptideChain
-              codes={state.draftCodes}
-              onChange={onPlace}
-              changedPositions={changedPositions}
-              armedClass={armed}
-              onConsumeArmed={() => setArmed(null)}
+          {/* ---- Structure column ---- */}
+          <div className="workbench-structure">
+            <MoleculeViewer
+              residues={state.draftResidues}
+              variant="workbench"
+              height={400}
+              highlightResidue={focus === null ? null : focus + 1}
+              exportLabel={`qbindselect-${state.draftResidues.join('')}`}
             />
-          </div>
 
-          <div
-            className="row-wrap"
-            style={{ justifyContent: 'space-between', marginTop: 'var(--s-3)' }}
-          >
-            <code
-              style={{
-                fontSize: 'var(--fs-xs)',
-                background: 'var(--surface-sunken)',
-                padding: '4px 8px',
-                borderRadius: 'var(--r-sm)',
-                overflowWrap: 'anywhere',
-              }}
-            >
-              {classSequence(state.draftCodes)}
-            </code>
-            <span className="faint" style={{ fontSize: 'var(--fs-xs)' }}>
-              {changedPositions.length === 0
-                ? 'Identical to the reference design'
-                : `${changedPositions.length} of ${LENGTH} positions changed from the reference`}
-            </span>
-          </div>
+            {peptide ? (
+              <Card style={{ marginTop: 'var(--s-4)' }}>
+                <h3 className="panel-subhead">Molecular properties</h3>
+                <dl className="prop-grid">
+                  <div>
+                    <dt>Formula</dt>
+                    <dd className="mono">{peptide.formula}</dd>
+                  </div>
+                  <div>
+                    <dt>Average mass</dt>
+                    <dd className="mono">{peptide.mass.average.toFixed(2)} g/mol</dd>
+                  </div>
+                  <div>
+                    <dt>Monoisotopic</dt>
+                    <dd className="mono">{peptide.mass.monoisotopic.toFixed(4)} Da</dd>
+                  </div>
+                  <div>
+                    <dt>Heavy atoms</dt>
+                    <dd className="mono">{peptide.heavyAtoms}</dd>
+                  </div>
+                  <div>
+                    <dt>Rotatable bonds</dt>
+                    <dd className="mono">{peptide.rotatableBonds}</dd>
+                  </div>
+                  <div>
+                    <dt>Rings</dt>
+                    <dd className="mono">{peptide.rings}</dd>
+                  </div>
+                  <div>
+                    <dt>
+                      Net charge
+                      <InfoTip
+                        title="Net charge at pH 7"
+                        body="Counted from the termini and the charged side chains: a protonated N-terminal amine (+1), a deprotonated C-terminal carboxyl (-1), plus +1 per Lys or Arg and -1 per Asp or Glu. The structure file itself stores the neutral forms."
+                      />
+                    </dt>
+                    <dd className="mono">
+                      {peptide.netChargeAtPh7 > 0 ? '+' : ''}
+                      {peptide.netChargeAtPh7}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Valence check</dt>
+                    <dd
+                      className="mono"
+                      style={{
+                        color:
+                          peptide.valenceProblems.length === 0
+                            ? 'var(--success)'
+                            : 'var(--danger)',
+                      }}
+                    >
+                      {peptide.valenceProblems.length === 0
+                        ? 'passed'
+                        : `${peptide.valenceProblems.length} problems`}
+                    </dd>
+                  </div>
+                </dl>
+                <Researcher>
+                  <Disclosure summary="Chemical identifiers for this molecule">
+                    <dl className="identifier-list">
+                      <div>
+                        <dt>Isomeric SMILES</dt>
+                        <dd className="mono">{peptide.smiles}</dd>
+                      </div>
+                      <div>
+                        <dt>Sequence (N to C)</dt>
+                        <dd className="mono">
+                          {peptide.residues.map((r) => r.template.code3).join('-')}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Bonds / peptide bonds</dt>
+                        <dd className="mono">
+                          {peptide.bondCount} / {peptide.peptideBonds}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Monoisotopic mass</dt>
+                        <dd className="mono">{peptide.mass.monoisotopic.toFixed(4)} Da</dd>
+                      </div>
+                    </dl>
+                    <p className="faint" style={{ fontSize: 'var(--fs-xs)' }}>
+                      The connection table is built from explicit per-residue templates and
+                      checked for neutral covalent valence at every atom. The same molecules are
+                      cross-checked against RDKit in the test suite.
+                    </p>
+                  </Disclosure>
+                </Researcher>
 
-          <div style={{ marginTop: 'var(--s-5)' }}>
-            <h3 style={{ fontSize: 'var(--fs-md)', marginBottom: 'var(--s-1)' }}>
-              Building-block families
-            </h3>
-            <p
-              className="muted"
-              style={{ fontSize: 'var(--fs-sm)', marginBottom: 'var(--s-3)' }}
-            >
-              {armed === null
-                ? 'Select a family to arm it, then tap a position. Or drag it straight onto a position.'
-                : `${CLASS_INFO[armed].name} is armed. Now tap a position to place it.`}
+                {focus !== null ? (
+                  <div className="residue-detail">
+                    <h4>
+                      Position {focus + 1} &middot;{' '}
+                      {residueFor(state.draftResidues[focus]).name} (
+                      {residueFor(state.draftResidues[focus]).code3})
+                    </h4>
+                    <p>{residueFor(state.draftResidues[focus]).note}</p>
+                    <p className="mono">
+                      Kyte-Doolittle hydropathy{' '}
+                      {residueFor(state.draftResidues[focus]).hydropathy.toFixed(1)} &middot;{' '}
+                      {residueFor(state.draftResidues[focus]).polarity} &middot; family{' '}
+                      {CLASS_INFO[state.draftCodes[focus]].name}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="faint" style={{ fontSize: 'var(--fs-xs)' }}>
+                    Hover or focus a position above to highlight that residue in both structure
+                    views and read its chemistry.
+                  </p>
+                )}
+              </Card>
+            ) : null}
+          </div>
+        </div>
+
+        {/* ================= SCORES ================= */}
+        <section className="section">
+          <header className="section-head">
+            <div className="spread" style={{ alignItems: 'baseline', gap: 'var(--s-3)' }}>
+              <h2 className="section-title">What the model says about this design</h2>
+              {/* One provenance marker for the whole section rather than one on
+                  every statistic: the source is the same for all of them. */}
+              <ProvenanceBadge kind="computed" />
+            </div>
+            <p className="section-lede">
+              Recomputed exactly on every class edit, from the published scoring model, in this
+              browser.
             </p>
-            <ClassPalette armedClass={armed} onArm={setArmed} />
-          </div>
-        </Card>
+            <PlainNote>
+              Three numbers, one per plastic. They are model scores on an arbitrary scale, so a
+              single value means little on its own &mdash; what matters is the gap between the
+              PET score and the other two, which is the last tile below.
+            </PlainNote>
+            <Equation label="The quantity the optimiser minimises, at the Selectivity Priority currently set.">
+{`objective(c) = -PET(c) + lambda * ( PE(c) + PP(c) )
 
-        {/* ---------------- SCORES ---------------- */}
-        <section style={{ marginTop: 'var(--s-6)' }}>
-          <h2 className="section-title">What the model says about this design</h2>
-          <p className="screen-purpose" style={{ marginBottom: 'var(--s-4)' }}>
-            Recomputed exactly on every edit, from the published scoring model.
-          </p>
+PET(c) = intercept + sum_i  h_PET[i, c_i]  +  sum_{i<j}  J_PET[i, j, c_i, c_j]
+                     (8 one-body terms)        (28 two-body terms)`}
+            </Equation>
+          </header>
 
           {!scoreMatchesDraft ? (
             state.status === 'error' ? (
               <Notice tone="honest" icon="!">
                 <strong>Scoring is unavailable, so these panels are switched off.</strong>
                 <p style={{ marginTop: 'var(--s-1)' }}>
-                  {state.error?.message ??
-                    'The scoring model could not be loaded in this browser.'}{' '}
-                  You can still build and share designs; the numbers will fill in if scoring
-                  recovers.
+                  {state.error?.message ?? 'The scoring model could not be loaded in this browser.'}{' '}
+                  Editing, the structure views and the exports all still work.
                 </p>
               </Notice>
             ) : (
@@ -239,7 +429,6 @@ export function BuildScreen(): JSX.Element {
                   help={METRIC_HELP.petScore.plain}
                   tone="pet"
                   delta={deltas ? { value: deltas.PET, betterWhen: 'higher' } : null}
-                  provenance="computed"
                 />
                 <Stat
                   label={METRIC_HELP.peScore.label}
@@ -249,7 +438,6 @@ export function BuildScreen(): JSX.Element {
                   help={METRIC_HELP.peScore.plain}
                   tone="pe"
                   delta={deltas ? { value: deltas.PE, betterWhen: 'lower' } : null}
-                  provenance="computed"
                 />
                 <Stat
                   label={METRIC_HELP.ppScore.label}
@@ -259,7 +447,6 @@ export function BuildScreen(): JSX.Element {
                   help={METRIC_HELP.ppScore.plain}
                   tone="pp"
                   delta={deltas ? { value: deltas.PP, betterWhen: 'lower' } : null}
-                  provenance="computed"
                 />
                 <Stat
                   label={METRIC_HELP.marginWorst.label}
@@ -269,88 +456,92 @@ export function BuildScreen(): JSX.Element {
                   help={METRIC_HELP.marginWorst.plain}
                   tone={score.metrics.marginWorst > 0 ? 'good' : 'warn'}
                   delta={deltas ? { value: deltas.marginWorst, betterWhen: 'higher' } : null}
-                  provenance="computed"
                 />
               </div>
 
-              <Card style={{ marginTop: 'var(--s-4)' }}>
-                <ScoreBars
-                  rows={PLASTIC_INFO.map((info) => ({
-                    label: `${info.id} (${info.everyday.toLowerCase()})`,
-                    value: score.scores[info.id],
-                    colour: `var(--c-${info.id.toLowerCase()})`,
-                    direction: info.role === 'target' ? ('higher' as const) : ('lower' as const),
-                  }))}
-                />
-              </Card>
-
-              {deltas ? (
-                <Notice
-                  tone={deltas.marginWorst > 0 ? 'good' : deltas.marginWorst < 0 ? 'honest' : 'plain'}
-                  icon={deltas.marginWorst > 0 ? '+' : deltas.marginWorst < 0 ? '-' : '='}
-                >
-                  <strong>What your last edit did.</strong>
-                  <p style={{ marginTop: 'var(--s-1)' }}>
-                    {describeScoreChange(
-                      deltas.PET,
-                      deltas.PE,
-                      deltas.PP,
-                      deltas.marginWorst,
+              <div className="score-row">
+                <Card>
+                  <ScoreBars
+                    rows={PLASTIC_INFO.map((info) => ({
+                      label: `${info.id} (${info.everyday.toLowerCase()})`,
+                      value: score.scores[info.id],
+                      colour: `var(--c-${info.id.toLowerCase()})`,
+                      direction:
+                        info.role === 'target' ? ('higher' as const) : ('lower' as const),
+                    }))}
+                  />
+                </Card>
+                <Card>
+                  {deltas ? (
+                    <>
+                      <h3 className="panel-subhead">What your last edit did</h3>
+                      <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)' }}>
+                        {describeScoreChange(
+                          deltas.PET,
+                          deltas.PE,
+                          deltas.PP,
+                          deltas.marginWorst,
+                        )}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="panel-subhead">Before and after</h3>
+                      <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)' }}>
+                        Change a family above and a plain-language comparison of the two scored
+                        states appears here.
+                      </p>
+                    </>
+                  )}
+                  <div className="row-wrap" style={{ marginTop: 'var(--s-3)' }}>
+                    {score.metrics.warnings.split(';').map((label) => {
+                      const help = CANDIDATE_LABEL_HELP[label];
+                      return (
+                        <span
+                          key={label}
+                          className="badge"
+                          style={
+                            label === 'BALANCED'
+                              ? { borderColor: 'var(--success)', color: 'var(--success)' }
+                              : { borderColor: 'var(--attention)', color: 'var(--attention)' }
+                          }
+                        >
+                          {help?.title ?? label}
+                          {help ? <InfoTip title={help.title} body={help.plain} /> : null}
+                        </span>
+                      );
+                    })}
+                    {score.rankInSpace !== null ? (
+                      <span className="badge">
+                        Rank {formatInt(score.rankInSpace)} of 1,679,616
+                        <InfoTip
+                          title={METRIC_HELP.rankInSpace.label}
+                          body={METRIC_HELP.rankInSpace.plain}
+                        />
+                      </span>
+                    ) : (
+                      <span className="badge prov-unavailable badge-prov">
+                        Rank unknown until a full run has been done
+                      </span>
                     )}
-                  </p>
-                </Notice>
-              ) : (
-                <Notice>
-                  Make an edit and a plain-language before/after explanation appears here.
-                </Notice>
-              )}
-
-              {/* Composition warnings */}
-              <div className="row-wrap" style={{ marginTop: 'var(--s-4)' }}>
-                {score.metrics.warnings.split(';').map((label) => {
-                  const help = CANDIDATE_LABEL_HELP[label];
-                  return (
-                    <span
-                      key={label}
-                      className="badge"
-                      style={
-                        label === 'BALANCED'
-                          ? { borderColor: 'var(--success)', color: 'var(--success)' }
-                          : { borderColor: 'var(--attention)', color: 'var(--attention)' }
-                      }
-                    >
-                      {help?.title ?? label}
-                      {help ? <InfoTip title={help.title} body={help.plain} /> : null}
-                    </span>
-                  );
-                })}
-                {score.rankInSpace !== null ? (
-                  <span className="badge">
-                    Rank {formatInt(score.rankInSpace)} of 1,679,616
-                    <InfoTip
-                      title={METRIC_HELP.rankInSpace.label}
-                      body={METRIC_HELP.rankInSpace.plain}
-                    />
-                  </span>
-                ) : (
-                  <span className="badge prov-unavailable badge-prov">
-                    Rank unknown until a full run has been done
-                  </span>
-                )}
+                  </div>
+                </Card>
               </div>
 
-              {/* Researcher detail */}
               <div style={{ marginTop: 'var(--s-4)' }}>
-                <Disclosure summary="Advanced: where each number comes from">
+                <Disclosure
+                  summary="Advanced: where each number comes from"
+                  defaultOpen={researcher}
+                >
                   <div className="stack-sm">
                     <p>
-                      The objective at the current Selectivity Priority (&lambda; ={' '}
-                      {state.lambda}) is built from the three scores:
+                      The objective at the current Selectivity Priority (&lambda; = {state.lambda})
+                      is built from the three scores:
                     </p>
                     <pre
                       className="mono scroll-x"
                       style={{
-                        background: 'var(--surface)',
+                        background: 'var(--surface-sunken)',
                         padding: 'var(--s-3)',
                         borderRadius: 'var(--r-sm)',
                         fontSize: 'var(--fs-xs)',
@@ -363,10 +554,10 @@ export function BuildScreen(): JSX.Element {
                     </pre>
                     <p className="faint">
                       Each plastic score is the sum of 8 single-position terms and 28 pair terms.
-                      For PET those contribute {score.contributions.PET.linearTotal.toFixed(3)}{' '}
-                      and {score.contributions.PET.pairTotal.toFixed(3)} respectively. The pair
-                      terms are what make this a genuinely quadratic optimisation problem rather
-                      than a per-position lookup.
+                      For PET those contribute {score.contributions.PET.linearTotal.toFixed(3)} and{' '}
+                      {score.contributions.PET.pairTotal.toFixed(3)} respectively. The pair terms
+                      are what make this a genuinely quadratic optimisation problem rather than a
+                      per-position lookup.
                     </p>
                   </div>
                 </Disclosure>
@@ -375,85 +566,69 @@ export function BuildScreen(): JSX.Element {
           )}
         </section>
 
-        {/* ---------------- CHALLENGE ---------------- */}
-        <section style={{ marginTop: 'var(--s-6)' }}>
-          <Card
-            style={{
-              borderColor: 'var(--optimise)',
-              background:
-                'linear-gradient(135deg, color-mix(in srgb, var(--optimise) 8%, var(--surface)), var(--surface))',
-            }}
-          >
-            <div className="spread" style={{ alignItems: 'flex-start' }}>
-              <div style={{ maxWidth: '62ch' }}>
-                <p className="eyebrow" style={{ color: 'var(--optimise)' }}>
-                  Guided challenge
-                </p>
-                <h2 style={{ fontSize: 'var(--fs-lg)', marginBlock: 'var(--s-2)' }}>
-                  {CHALLENGE.title}
-                </h2>
-                <p className="muted" style={{ fontSize: 'var(--fs-sm)' }}>
-                  {CHALLENGE.brief}
-                </p>
-                {challengeStart !== null && score && scoreMatchesDraft ? (
-                  <Notice
-                    tone={score.metrics.marginWorst > challengeStart ? 'good' : 'plain'}
-                  >
-                    {score.metrics.marginWorst > challengeStart ? (
-                      <>
-                        <strong>Improved.</strong> Your margin against the worst off-target is
-                        up {(score.metrics.marginWorst - challengeStart).toFixed(2)} from where
-                        you started the challenge.
-                      </>
-                    ) : score.metrics.marginWorst < challengeStart ? (
-                      <>
-                        <strong>Down so far.</strong> The margin is{' '}
-                        {(challengeStart - score.metrics.marginWorst).toFixed(2)} lower than your
-                        starting point. Try swapping a greasy block for a flat-ring one.
-                      </>
-                    ) : (
-                      <>No change yet from your starting margin of {challengeStart.toFixed(2)}.</>
-                    )}
-                  </Notice>
-                ) : null}
-              </div>
-              <div className="stack-sm" style={{ flex: 'none' }}>
-                <Button
-                  variant="primary"
-                  disabled={!scoreMatchesDraft}
-                  onClick={() =>
-                    setChallengeStart(score ? score.metrics.marginWorst : null)
-                  }
-                >
-                  {challengeStart === null ? 'Start the challenge' : 'Restart from here'}
-                </Button>
-                {challengeStart !== null ? (
-                  <Button variant="ghost" onClick={() => setChallengeStart(null)}>
-                    End challenge
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-            <Disclosure summary="Need a hint?">
-              <p>{CHALLENGE.hint}</p>
-            </Disclosure>
+        {/* ================= PER-POSITION CONTRIBUTIONS ================= */}
+        <section className="section">
+          <header className="section-head">
+            <h2 className="section-title">Which position is doing the work</h2>
+            <p className="section-lede">
+              The one-body term each position contributes to each plastic. Select a bar group to
+              highlight that residue in the structure views above.
+            </p>
+            <Beginner>
+              <p className="plain-note">
+                Tall teal bars are good: that position is helping the design prefer PET. Where an
+                amber or violet bar is taller than the teal one, that position is working against
+                you.
+              </p>
+            </Beginner>
+            <Researcher>
+              <p className="section-lede">
+                These are the diagonal <code>h[i, c_i]</code> terms only. The 28{' '}
+                <code>J[i, j, c_i, c_j]</code> pair terms are not decomposable per position and
+                are summarised in the totals under &ldquo;where each number comes from&rdquo;
+                above; the full coefficient matrix is on the Understand screen.
+              </p>
+            </Researcher>
+          </header>
+          <Card>
+            {perPosition ? (
+              <ContributionChart
+                codes={state.draftCodes}
+                perPosition={perPosition}
+                residues={state.draftResidues.map((code) => residueFor(code))}
+                focusPosition={focus}
+                onFocusPosition={setFocus}
+              />
+            ) : (
+              <p className="muted" style={{ fontSize: 'var(--fs-sm)' }}>
+                The per-position breakdown appears once the design has been scored.
+              </p>
+            )}
           </Card>
         </section>
 
-        {/* ---------------- COMPARE A/B ---------------- */}
-        <section style={{ marginTop: 'var(--s-6)' }}>
-          <h2 className="section-title">Compare two designs side by side</h2>
-          <p className="screen-purpose" style={{ marginBottom: 'var(--s-4)' }}>
-            Park the current design in a slot, change it, then park the new one. Both slots stay
-            scored at the same priority setting, so the comparison is fair.
-          </p>
+        {/* ================= A/B SLOTS ================= */}
+        <section className="section">
+          <header className="section-head">
+            <h2 className="section-title">Park two designs and compare them</h2>
+            <p className="section-lede">
+              Both slots stay scored at the same Selectivity Priority, so the comparison is fair.
+              For a full ranked comparison across a finished run, use{' '}
+              <button type="button" className="link-button" onClick={() => navigate('compare')}>
+                Compare
+              </button>
+              .
+            </p>
+          </header>
           <div className="grid-auto">
             {(['A', 'B'] as const).map((slot) => {
               const codes = slot === 'A' ? state.compareA : state.compareB;
               return (
                 <Card key={slot}>
                   <div className="spread" style={{ marginBottom: 'var(--s-3)' }}>
-                    <h3 style={{ fontSize: 'var(--fs-md)' }}>Slot {slot}</h3>
+                    <h3 className="panel-subhead" style={{ margin: 0 }}>
+                      Slot {slot}
+                    </h3>
                     <div className="row" style={{ gap: 'var(--s-2)' }}>
                       <Button
                         size="sm"
@@ -491,7 +666,10 @@ export function BuildScreen(): JSX.Element {
                         {classSequence(codes)}
                       </code>
                       {codes.join(',') === state.draftCodes.join(',') ? (
-                        <span className="badge" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>
+                        <span
+                          className="badge"
+                          style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+                        >
                           This is your current design
                         </span>
                       ) : (
@@ -512,57 +690,75 @@ export function BuildScreen(): JSX.Element {
           </div>
         </section>
 
-        {/* ---------------- BINDING CONCEPT ---------------- */}
-        <section style={{ marginTop: 'var(--s-6)' }}>
-          <h2 className="section-title">How this design meets each surface</h2>
-          <p className="screen-purpose" style={{ marginBottom: 'var(--s-4)' }}>
-            Switch surfaces to see which positions the model prefers for which plastic.
-          </p>
+        {/* ================= CHALLENGE ================= */}
+        <section className="section">
           <Card>
-            <div className="row-wrap" style={{ marginBottom: 'var(--s-4)' }}>
-              {PLASTIC_INFO.map((info) => (
+            <div className="spread" style={{ alignItems: 'flex-start', gap: 'var(--s-5)' }}>
+              <div style={{ maxWidth: '62ch' }}>
+                <p className="eyebrow" style={{ color: 'var(--optimise)' }}>
+                  Guided challenge
+                </p>
+                <h2 style={{ fontSize: 'var(--fs-lg)', marginBlock: 'var(--s-2)' }}>
+                  {CHALLENGE.title}
+                </h2>
+                <p className="muted" style={{ fontSize: 'var(--fs-sm)' }}>
+                  {CHALLENGE.brief}
+                </p>
+                {challengeStart !== null && score && scoreMatchesDraft ? (
+                  <Notice tone={score.metrics.marginWorst > challengeStart ? 'good' : 'plain'}>
+                    {score.metrics.marginWorst > challengeStart ? (
+                      <>
+                        <strong>Improved.</strong> Your margin against the worst off-target is up{' '}
+                        {(score.metrics.marginWorst - challengeStart).toFixed(2)} from where you
+                        started.
+                      </>
+                    ) : score.metrics.marginWorst < challengeStart ? (
+                      <>
+                        <strong>Down so far.</strong> The margin is{' '}
+                        {(challengeStart - score.metrics.marginWorst).toFixed(2)} lower than your
+                        starting point. Try swapping a greasy family for a flat-ring one.
+                      </>
+                    ) : (
+                      <>No change yet from your starting margin of {challengeStart.toFixed(2)}.</>
+                    )}
+                  </Notice>
+                ) : null}
+                <Disclosure summary="Need a hint?">
+                  <p>{CHALLENGE.hint}</p>
+                </Disclosure>
+              </div>
+              <div className="stack-sm" style={{ flex: 'none' }}>
                 <Button
-                  key={info.id}
-                  size="sm"
-                  variant={surface === info.id ? 'primary' : 'secondary'}
-                  onClick={() => setSurface(info.id)}
-                  aria-pressed={surface === info.id}
+                  variant="primary"
+                  disabled={!scoreMatchesDraft}
+                  onClick={() => setChallengeStart(score ? score.metrics.marginWorst : null)}
                 >
-                  {info.id} &mdash; {info.everyday.toLowerCase()}
+                  {challengeStart === null ? 'Start the challenge' : 'Restart from here'}
                 </Button>
-              ))}
+                {challengeStart !== null ? (
+                  <Button variant="ghost" onClick={() => setChallengeStart(null)}>
+                    End challenge
+                  </Button>
+                ) : null}
+              </div>
             </div>
-            <BindingConcept
-              codes={state.draftCodes}
-              perPosition={
-                scoreMatchesDraft
-                  ? {
-                      PET: score.contributions.PET.positions,
-                      PE: score.contributions.PE.positions,
-                      PP: score.contributions.PP.positions,
-                    }
-                  : null
-              }
-              surface={surface}
-              reducedMotion={reducedMotion}
-            />
           </Card>
         </section>
 
-        {/* ---------------- NEXT ---------------- */}
-        <section style={{ marginTop: 'var(--s-7)' }}>
+        {/* ================= NEXT ================= */}
+        <section className="section">
           <Card>
             <div className="spread" style={{ gap: 'var(--s-4)', flexWrap: 'wrap' }}>
-              <div>
-                <h2 style={{ fontSize: 'var(--fs-lg)' }}>Ready to let the optimiser try?</h2>
-                <p className="muted" style={{ fontSize: 'var(--fs-sm)', marginTop: 'var(--s-1)' }}>
-                  Set the Selectivity Priority and run the real search over all{' '}
-                  {groupInt(6 ** 8)} designs.
+              <div style={{ maxWidth: '60ch' }}>
+                <h2 style={{ fontSize: 'var(--fs-lg)' }}>Let the optimiser try</h2>
+                <p className="muted" style={{ fontSize: 'var(--fs-sm)', marginTop: 'var(--s-2)' }}>
+                  Set the Selectivity Priority and run the exhaustive search over all{' '}
+                  {groupInt(6 ** 8)} class sequences.
                 </p>
               </div>
               <div className="row-wrap">
                 <Button variant="ghost" onClick={() => navigate('discover')}>
-                  Back to the start
+                  Back
                 </Button>
                 <Button variant="primary" onClick={() => navigate('optimise')}>
                   Go to Optimise
@@ -570,9 +766,6 @@ export function BuildScreen(): JSX.Element {
               </div>
             </div>
           </Card>
-          <p className="faint" style={{ fontSize: 'var(--fs-xs)', marginTop: 'var(--s-4)' }}>
-            {HONESTY.proxyScore}
-          </p>
         </section>
       </div>
     </div>

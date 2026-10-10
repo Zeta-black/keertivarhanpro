@@ -405,12 +405,29 @@ const CHECK_IMPL: Record<CheckId, (ctx: RenderContext) => Promise<CheckResult> |
     return null;
   },
 
-  honestyPresent: () => {
+  /**
+   * The detailed assessment lives once, at the bottom of Results. Every other
+   * screen must still carry the one-line disclosure and a route to the full
+   * assessment, so a reader cannot leave believing a peptide was tested or a
+   * quantum computer was used - but no screen repeats the panel.
+   */
+  honestyPresent: ({ screen: current, data }) => {
     const body = document.body.textContent ?? '';
-    const hasNoLab = /not been tested in a laboratory|Nothing here has been tested/i.test(body);
-    const hasNoQuantum = /NO QUANTUM HARDWARE EXECUTION/i.test(body);
+    const hasNoLab = /no laboratory validation|not been tested in a laboratory/i.test(body);
+    const hasNoQuantum = /no quantum hardware/i.test(body);
     if (!hasNoLab) return 'no statement that nothing was tested in a laboratory';
-    if (!hasNoQuantum) return 'no NO QUANTUM HARDWARE EXECUTION statement';
+    if (!hasNoQuantum) return 'no statement that no quantum hardware was used';
+    const pointsAtAssessment = /scientific.validity assessment/i.test(body);
+    if (!pointsAtAssessment) return 'no route to the scientific validity assessment';
+    if (current === 'results' && data === 'computed') {
+      // Results must carry the assessment itself, not just a pointer to it -
+      // but it assesses a run, so there is nothing to assess before one exists.
+      if (!document.querySelector('#scientific-validity')) {
+        return 'the Results screen does not contain the scientific validity assessment';
+      }
+    } else if (document.querySelector('#scientific-validity')) {
+      return 'the full assessment is repeated outside Results';
+    }
     return null;
   },
 
@@ -584,7 +601,7 @@ async function setUpEnvironment(ctx: RenderContext): Promise<void> {
     fireEvent.click(target);
   });
   if (ctx.screen === 'discover') {
-    await screen.findByText(/tell plastics apart/i, undefined, { timeout: LAZY_TIMEOUT });
+    await screen.findByText(/one plastic from another/i, undefined, { timeout: LAZY_TIMEOUT });
   } else {
     await screen.findByText(SCREENS[ctx.screen].title, undefined, {
       timeout: LAZY_TIMEOUT,

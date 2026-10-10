@@ -14,7 +14,6 @@ import {
 import {
   ACCESSIBILITY_STATEMENT,
   FAQ,
-  HONESTY,
   JARGON,
   KEYBOARD_SHORTCUTS,
   NAV_ORDER,
@@ -31,14 +30,11 @@ export function Shell({ children }: { children: React.ReactNode }): JSX.Element 
   const [helpOpen, setHelpOpen] = useState(false);
   const [tourStep, setTourStep] = useState<number | null>(null);
 
-  // Offer the micro-tour on a genuine first visit only.
-  useEffect(() => {
-    if (!state.tourSeen && screen === 'discover') {
-      const timer = window.setTimeout(() => setTourStep(0), 900);
-      return () => window.clearTimeout(timer);
-    }
-    return undefined;
-  }, [state.tourSeen, screen]);
+  // The tour is offered, never forced. A dialog that opens itself over the
+  // first thing a visitor looks at costs more than it teaches, so it is a
+  // button in the header instead and the "new here?" hint only appears on the
+  // landing screen on a genuine first visit.
+  const offerTour = !state.tourSeen && screen === 'discover';
 
   // Global shortcuts. Never hijack typing in an input.
   useEffect(() => {
@@ -156,6 +152,21 @@ export function Shell({ children }: { children: React.ReactNode }): JSX.Element 
               title={`Switch to ${state.theme === 'light' ? 'dark' : 'light'} theme`}
             >
               <ThemeGlyph light={state.theme === 'light'} />
+            </Button>
+            <Button
+              variant={offerTour ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setTourStep(0)}
+              title="A five-step walkthrough of what this tool does"
+              // The visible label shortens on a phone, so the accessible name
+              // is stated explicitly and stays the same at every width.
+              aria-label="Take the guided tour"
+            >
+              {/* The invitation is worth the width on a desktop header and is
+                  not worth it on a phone, where the same button is one of five
+                  competing for one row. */}
+              {offerTour ? <span className="tour-invite">New here?&nbsp;</span> : null}
+              Tour
             </Button>
             <Button
               variant="ghost"
@@ -286,12 +297,15 @@ function SiteFooter({ onOpenHelp }: { readonly onOpenHelp: () => void }): JSX.El
       }}
     >
       <div className="shell stack">
-        <Notice tone="honest" icon="!">
-          <strong>Computational predictions only.</strong> Nothing here has been tested in a
-          laboratory. <strong>{HONESTY.noQuantum}</strong> &mdash; no quantum processor was used
-          at any point.{' '}
-          <ScreenLink to="understand">Read what this does and does not show</ScreenLink>.
-        </Notice>
+        {/* One line, stated once. The full scientific-validity assessment is a
+            section at the bottom of Results and appears nowhere else, so the
+            reader meets it in one place with its evidence rather than as a
+            badge repeated on every screen. */}
+        <p className="footer-disclosure">
+          Computational predictions only &mdash; no laboratory validation, and no quantum
+          hardware was used at any point.{' '}
+          <ScreenLink to="results">Read the full scientific-validity assessment</ScreenLink>.
+        </p>
         {/* A one-line glossary, on every screen. Someone who deep-links into
             /build or /results meets the words "peptide" and "selectivity
             priority" before they have ever seen the landing page. */}

@@ -10,6 +10,7 @@
 import { useMemo, useState } from 'react';
 
 import { useRouter } from '../app/router';
+import { Beginner, Equation, Researcher } from '../app/mode';
 import {
   Button,
   Card,
@@ -21,12 +22,14 @@ import {
   ProvenanceBadge,
   ScreenHeader,
   Stat,
+  StatGroup,
   formatInt,
   formatMs,
   formatSci,
 } from '../components/primitives';
 import { SequenceGlyph } from '../components/PeptideChain';
-import { CANDIDATE_LABEL_HELP, HONESTY, METRIC_HELP, SCREENS } from '../content/copy';
+import { CANDIDATE_LABEL_HELP, METRIC_HELP, SCREENS } from '../content/copy';
+import { ScientificValidity } from './ScientificValidity';
 import { CLASS_INFO } from '../science/alphabet';
 import { PLASTIC_INFO } from '../science/potts';
 import { encodeShareState } from '../state/persistence';
@@ -60,9 +63,24 @@ export function ResultsScreen(): JSX.Element {
             title={SCREENS.results.title}
             purpose={SCREENS.results.purpose}
           />
+          <Beginner>
+            <p className="plain-note">
+              This is the report page. After a run it explains which design won, why it won, how
+              sure we can be about that, and what the whole project does and does not prove.
+            </p>
+          </Beginner>
+          <Researcher>
+            <p className="section-lede" style={{ marginBottom: 'var(--s-4)' }}>
+              After a run this screen carries the full reproduction record: lambda, seed, penalty
+              multiplier, solver tolerance, surrogate split sizes, per-stage timings, the
+              environment the run executed in, the QUBO verification residuals, and CSV/JSON/
+              Markdown exports built from that record. The scientific validity assessment is the
+              final section.
+            </p>
+          </Researcher>
           <EmptyState
             title="There is no run to write up yet"
-            body="This screen summarises a completed run and turns it into downloadable files. Run the search first and everything here fills in with real numbers."
+            body="This screen summarises a completed run and turns it into downloadable files. It also carries the scientific validity assessment for the whole project, which appears here and nowhere else. Run the search first and everything fills in with real numbers."
             action={
               <div className="row-wrap" style={{ justifyContent: 'center' }}>
                 <Button variant="primary" onClick={() => navigate('optimise')}>
@@ -159,12 +177,14 @@ export function ResultsScreen(): JSX.Element {
 
           <Notice tone="honest" icon="!">
             <strong>Read this before the numbers.</strong> {winner.representative} is a pattern
-            of amino-acid <em>families</em>, not a peptide sequence. {HONESTY.classNotResidue}
+            of amino-acid <em>families</em>, not a single peptide sequence. The letters below are
+            one documented representative per family; the optimiser never distinguishes members
+            within a family.
           </Notice>
         </Card>
 
         {/* ---------------- THE EIGHT POSITIONS ---------------- */}
-        <section style={{ marginTop: 'var(--s-6)' }}>
+        <section className="section">
           <h2 className="section-title">The eight positions, named in full</h2>
           <Card style={{ padding: 0, marginTop: 'var(--s-3)' }}>
             <div className="scroll-x">
@@ -215,7 +235,7 @@ export function ResultsScreen(): JSX.Element {
         </section>
 
         {/* ---------------- WHY IT RANKED FIRST ---------------- */}
-        <section style={{ marginTop: 'var(--s-6)' }}>
+        <section className="section">
           <h2 className="section-title">Why it ranked first</h2>
           <Card>
             <p className="prose">
@@ -244,7 +264,28 @@ export function ResultsScreen(): JSX.Element {
               </p>
             ) : null}
 
-            <div className="grid-auto" style={{ marginTop: 'var(--s-5)' }}>
+            <Beginner>
+              <p className="plain-note">
+                Read these four together. The first is how strongly the model thinks this design
+                sticks to bottles; the second is how strongly it sticks to whichever of the other
+                two plastics it likes most. The third is the gap between them, which is the
+                number that actually matters. The fourth is the single score the search was
+                minimising.
+              </p>
+            </Beginner>
+            <Researcher>
+              <Equation label={`Evaluated at the run's own lambda. Values below are the exact minimiser over the full class space, not a sampled best.`}>
+{`objective = -PET + lambda * ( PE + PP )
+margin_worst = PET - max(PE, PP)
+margin_mean  = PET - (PE + PP)/2`}
+              </Equation>
+            </Researcher>
+
+            <div style={{ marginTop: 'var(--s-5)' }}>
+              <StatGroup
+                provenance="computed"
+                note="Exact values for the proven optimum at this priority."
+              >
               <Stat
                 label={METRIC_HELP.petScore.label}
                 value={winner.scores.PET.toFixed(3)}
@@ -252,7 +293,6 @@ export function ResultsScreen(): JSX.Element {
                 direction={METRIC_HELP.petScore.direction}
                 help={METRIC_HELP.petScore.plain}
                 tone="pet"
-                provenance="computed"
               />
               <Stat
                 label={METRIC_HELP.worstOffTarget.label}
@@ -261,7 +301,6 @@ export function ResultsScreen(): JSX.Element {
                 direction={METRIC_HELP.worstOffTarget.direction}
                 help={METRIC_HELP.worstOffTarget.plain}
                 tone="warn"
-                provenance="computed"
               />
               <Stat
                 label={METRIC_HELP.marginWorst.label}
@@ -270,7 +309,6 @@ export function ResultsScreen(): JSX.Element {
                 direction={METRIC_HELP.marginWorst.direction}
                 help={METRIC_HELP.marginWorst.plain}
                 tone={winner.metrics.marginWorst > 0 ? 'good' : 'warn'}
-                provenance="computed"
               />
               <Stat
                 label={METRIC_HELP.objective.label}
@@ -278,8 +316,8 @@ export function ResultsScreen(): JSX.Element {
                 unit={METRIC_HELP.objective.unit}
                 direction={METRIC_HELP.objective.direction}
                 help={METRIC_HELP.objective.plain}
-                provenance="computed"
               />
+              </StatGroup>
             </div>
 
             <div style={{ marginTop: 'var(--s-5)' }}>
@@ -324,7 +362,7 @@ export function ResultsScreen(): JSX.Element {
         </section>
 
         {/* ---------------- SENSITIVITY ---------------- */}
-        <section style={{ marginTop: 'var(--s-6)' }}>
+        <section className="section">
           <h2 className="section-title">How sensitive is this answer?</h2>
           <Card style={{ padding: 0 }}>
             <div className="scroll-x">
@@ -397,7 +435,7 @@ export function ResultsScreen(): JSX.Element {
         </section>
 
         {/* ---------------- CONFIDENCE ---------------- */}
-        <section style={{ marginTop: 'var(--s-6)' }}>
+        <section className="section">
           <h2 className="section-title">Confidence and limitations</h2>
           <div className="grid-auto">
             <Card>
@@ -441,53 +479,41 @@ export function ResultsScreen(): JSX.Element {
             </Card>
 
             <Card>
-              <h3 style={{ fontSize: 'var(--fs-md)' }}>What this does not establish</h3>
-              <ul
-                className="stack-sm"
-                style={{ marginTop: 'var(--s-3)', fontSize: 'var(--fs-sm)' }}
-              >
-                <li>{HONESTY.noLab}</li>
-                <li>{HONESTY.noDegradation}</li>
-                <li>{HONESTY.noBinding}</li>
-                <li>
-                  <strong>{HONESTY.noQuantum}.</strong> Recorded in this run as{' '}
-                  <code>{run.quantumHardware}</code>.
-                </li>
-              </ul>
-              <Button
-                variant="ghost"
-                size="sm"
-                style={{ marginTop: 'var(--s-3)' }}
-                onClick={() => navigate('understand')}
-              >
-                Read the full honesty section
-              </Button>
+              <h3 style={{ fontSize: 'var(--fs-md)' }}>Composition flags for this design</h3>
+              <p className="muted" style={{ fontSize: 'var(--fs-sm)', marginTop: 'var(--s-2)' }}>
+                Automatic labels from the winner&rsquo;s class composition. They describe the
+                design, not its quality.
+              </p>
+              <div className="row-wrap" style={{ marginTop: 'var(--s-3)' }}>
+                {winner.metrics.warnings.split(';').map((label) => {
+                  const help = CANDIDATE_LABEL_HELP[label];
+                  return (
+                    <span
+                      key={label}
+                      className="badge"
+                      style={
+                        label === 'BALANCED'
+                          ? { borderColor: 'var(--success)', color: 'var(--success)' }
+                          : { borderColor: 'var(--attention)', color: 'var(--attention)' }
+                      }
+                    >
+                      {help?.title ?? label}
+                      {help ? <InfoTip title={help.title} body={help.plain} /> : null}
+                    </span>
+                  );
+                })}
+              </div>
+              <p className="faint" style={{ fontSize: 'var(--fs-xs)', marginTop: 'var(--s-4)' }}>
+                What this run does and does not establish is set out in full in the scientific
+                validity assessment at the bottom of this page.
+              </p>
             </Card>
           </div>
 
-          <div className="row-wrap" style={{ marginTop: 'var(--s-4)' }}>
-            {winner.metrics.warnings.split(';').map((label) => {
-              const help = CANDIDATE_LABEL_HELP[label];
-              return (
-                <span
-                  key={label}
-                  className="badge"
-                  style={
-                    label === 'BALANCED'
-                      ? { borderColor: 'var(--success)', color: 'var(--success)' }
-                      : { borderColor: 'var(--attention)', color: 'var(--attention)' }
-                  }
-                >
-                  {help?.title ?? label}
-                  {help ? <InfoTip title={help.title} body={help.plain} /> : null}
-                </span>
-              );
-            })}
-          </div>
         </section>
 
         {/* ---------------- RUN CONFIGURATION ---------------- */}
-        <section style={{ marginTop: 'var(--s-6)' }}>
+        <section className="section">
           <h2 className="section-title">Exactly how this run was configured</h2>
           <div className="grid-auto">
             <Card>
@@ -584,7 +610,7 @@ export function ResultsScreen(): JSX.Element {
         </section>
 
         {/* ---------------- SOLVERS SUMMARY ---------------- */}
-        <section style={{ marginTop: 'var(--s-6)' }}>
+        <section className="section">
           <h2 className="section-title">Search methods used</h2>
           <Card style={{ padding: 0 }}>
             <div className="scroll-x">
@@ -659,7 +685,7 @@ export function ResultsScreen(): JSX.Element {
         </section>
 
         {/* ---------------- DOWNLOADS ---------------- */}
-        <section style={{ marginTop: 'var(--s-7) ' }} className="no-print">
+        <section className="section no-print">
           <h2 className="section-title">Download this run</h2>
           <p className="screen-purpose" style={{ marginBottom: 'var(--s-4)' }}>
             Every file is built from the run shown above, with the same seed and priority. There
@@ -742,13 +768,19 @@ export function ResultsScreen(): JSX.Element {
           </Notice>
         </section>
 
+        {/* ---------------- SCIENTIFIC VALIDITY ----------------
+            The one and only place this assessment appears in the whole app. */}
+        <ScientificValidity run={run} />
+
         {/* Print-only footer so a PDF is self-describing. */}
         <div className="print-only" style={{ marginTop: 'var(--s-6)' }}>
           <hr />
           <p style={{ fontSize: 11 }}>
             QBind Select &mdash; computational selectivity proxy. Run {run.runId}, priority
             &lambda; = {run.config.lambda}, seed {run.config.seed}, started {run.startedAtIso}.
-            Model: {run.modelSource}. {HONESTY.noLab} {HONESTY.noQuantum}.
+            Model: {run.modelSource}. Computational predictions only: no laboratory validation
+            and no quantum hardware execution. The full scientific validity assessment is the
+            final section of this report.
           </p>
         </div>
       </div>

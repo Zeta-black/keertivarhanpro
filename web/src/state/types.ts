@@ -113,6 +113,14 @@ export interface AppState {
 
   /** ---- the peptide the user is editing ---- */
   readonly draftCodes: number[];
+  /**
+   * One concrete amino acid per position, chosen from the members of that
+   * position's class. This exists ONLY so a real molecule can be drawn: the
+   * scoring model works at class resolution, so swapping leucine for
+   * isoleucine changes the molecule and changes no score. The reducer keeps
+   * this list reconciled with `draftCodes` so the two can never disagree.
+   */
+  readonly draftResidues: string[];
   readonly baselineCodes: number[] | null;
   readonly draftScore: ScoreResponsePayload | null;
   readonly previousScore: ScoreResponsePayload | null;

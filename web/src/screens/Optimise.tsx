@@ -18,6 +18,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useRouter } from '../app/router';
+import { Beginner, PlainNote, Researcher } from '../app/mode';
 import { useDraftScoring } from '../app/hooks';
 import {
   Button,
@@ -29,6 +30,7 @@ import {
   ProvenanceBadge,
   ScreenHeader,
   Stat,
+  StatGroup,
   formatInt,
   formatMs,
   formatScore,
@@ -39,7 +41,7 @@ import { BENCHMARK_LAMBDAS, LAMBDA_MAX, LAMBDA_MIN } from '../science/objective'
 import { VALID_SEQUENCES } from '../science/alphabet';
 import { tunedWorkload } from '../state/capability';
 import { useStore } from '../state/store';
-import { STAGES, type StageId } from '../workers/protocol';
+import { DEFAULT_RUN_CONFIG, STAGES, type StageId } from '../workers/protocol';
 import { groupInt } from '../content/format';
 
 export function OptimiseScreen(): JSX.Element {
@@ -48,6 +50,16 @@ export function OptimiseScreen(): JSX.Element {
   useDraftScoring();
 
   const [sliderValue, setSliderValue] = useState(state.lambda);
+  // Researcher-mode run parameters. They start at the device-tuned defaults
+  // and are passed straight through to the worker, so changing one genuinely
+  // changes the computation rather than only the readout.
+  const defaults = tunedWorkload(state.capability);
+  const [seed, setSeed] = useState(DEFAULT_RUN_CONFIG.seed);
+  const [reads, setReads] = useState(defaults.annealing.reads);
+  const [sweeps, setSweeps] = useState(defaults.annealing.sweeps);
+  const [penaltyMultiplier, setPenaltyMultiplier] = useState(
+    DEFAULT_RUN_CONFIG.penaltyMultiplier,
+  );
   const commitTimer = useRef<number | null>(null);
 
   useEffect(() => setSliderValue(state.lambda), [state.lambda]);
@@ -153,6 +165,9 @@ export function OptimiseScreen(): JSX.Element {
                 Staying off PE and PP dominates
               </span>
             </div>
+            {/* Each marker sits at its own position on the linear scale.
+                Spacing them evenly would put lambda = 0.5 at the quarter mark,
+                which misrepresents the axis the slider actually has. */}
             <div className="slider-ticks" role="group" aria-label="Benchmark priority values">
               {BENCHMARK_LAMBDAS.map((value) => (
                 <button
@@ -160,6 +175,9 @@ export function OptimiseScreen(): JSX.Element {
                   type="button"
                   className="slider-tick"
                   aria-pressed={Math.abs(sliderValue - value) < 1e-9}
+                  style={{
+                    left: `${((value - LAMBDA_MIN) / (LAMBDA_MAX - LAMBDA_MIN)) * 100}%`,
+                  }}
                   onClick={() => {
                     setSliderValue(value);
                     dispatch({ type: 'SET_LAMBDA', lambda: value });
@@ -174,6 +192,11 @@ export function OptimiseScreen(): JSX.Element {
               The five marked values are the ones the published Python benchmark ran. Any value
               in between is recomputed exactly here, not interpolated.
             </p>
+            <PlainNote>
+              Think of this as &ldquo;how fussy should the search be?&rdquo;. At the far left it
+              only cares about sticking to bottles. At the far right it would rather stick to
+              nothing than risk sticking to bags and tubs.
+            </PlainNote>
           </div>
 
           <Notice tone={sliderValue === 0 ? 'honest' : 'plain'}>
@@ -183,7 +206,7 @@ export function OptimiseScreen(): JSX.Element {
         </Card>
 
         {/* ---------------- OBJECTIVE BREAKDOWN ---------------- */}
-        <section style={{ marginTop: 'var(--s-6)' }}>
+        <section className="section">
           <h2 className="section-title">What that priority does to the numbers</h2>
           <p className="screen-purpose" style={{ marginBottom: 'var(--s-4)' }}>
             {run
@@ -193,7 +216,10 @@ export function OptimiseScreen(): JSX.Element {
 
           {scoreMatches && score ? (
             <>
-              <div className="grid-auto">
+              <StatGroup
+                provenance="computed"
+                note="Calculated exactly in this browser from the published scoring model."
+              >
                 <Stat
                   label="PET model score"
                   value={formatScore(score.scores.PET)}
@@ -201,7 +227,6 @@ export function OptimiseScreen(): JSX.Element {
                   direction="higher is better"
                   help={METRIC_HELP.petScore.plain}
                   tone="pet"
-                  provenance="computed"
                 />
                 <Stat
                   label="Off-target total (PE + PP)"
@@ -210,7 +235,6 @@ export function OptimiseScreen(): JSX.Element {
                   direction="lower is better"
                   help="The two unwanted scores added together. The priority dial multiplies this number."
                   tone="warn"
-                  provenance="computed"
                 />
                 <Stat
                   label="Off-target penalty"
@@ -218,7 +242,6 @@ export function OptimiseScreen(): JSX.Element {
                   unit={`= ${sliderValue.toFixed(2)} x off-target total`}
                   direction="lower is better"
                   help="The priority dial multiplied by the off-target total. This is the part of the objective the dial controls."
-                  provenance="computed"
                 />
                 <Stat
                   label={METRIC_HELP.objective.label}
@@ -226,9 +249,8 @@ export function OptimiseScreen(): JSX.Element {
                   unit={METRIC_HELP.objective.unit}
                   direction={METRIC_HELP.objective.direction}
                   help={METRIC_HELP.objective.plain}
-                  provenance="computed"
                 />
-              </div>
+              </StatGroup>
 
               <Card style={{ marginTop: 'var(--s-4)' }}>
                 <h3 style={{ fontSize: 'var(--fs-md)', marginBottom: 'var(--s-3)' }}>
@@ -287,7 +309,7 @@ export function OptimiseScreen(): JSX.Element {
 
         {/* ---------------- WHAT CHANGED ---------------- */}
         {run && sweepHere ? (
-          <section style={{ marginTop: 'var(--s-6)' }}>
+          <section className="section">
             <h2 className="section-title">What changed when you moved the dial</h2>
             <Card>
               {sweepBaseline &&
@@ -324,18 +346,126 @@ export function OptimiseScreen(): JSX.Element {
           </section>
         ) : null}
 
+        {/* ---------------- RUN PARAMETERS (RESEARCHER) ----------------
+            Real controls, not a readout: the values set here are the ones
+            handed to the worker. Beginners get the tuned defaults for their
+            device and never see this panel. */}
+        <Researcher>
+          <section className="section">
+            <header className="section-head">
+              <h2 className="section-title">Run parameters</h2>
+              <p className="section-lede">
+                These are the values passed to the worker when you start a run. The defaults are
+                tuned to this device&rsquo;s reported core count and memory so the page stays
+                responsive; raising them costs time, not correctness, because the exhaustive
+                search is exact either way.
+              </p>
+            </header>
+            <Card>
+              <div className="param-grid">
+                <label className="param">
+                  <span>Random seed</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={seed}
+                    onChange={(event) => setSeed(Math.max(0, Number(event.target.value) || 0))}
+                  />
+                  <small>Controls the surrogate split and the annealing trajectory.</small>
+                </label>
+                <label className="param">
+                  <span>Annealing reads</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={2000}
+                    step={1}
+                    value={reads}
+                    onChange={(event) =>
+                      setReads(Math.min(2000, Math.max(1, Number(event.target.value) || 1)))
+                    }
+                  />
+                  <small>Independent samples drawn from the 48-variable QUBO.</small>
+                </label>
+                <label className="param">
+                  <span>Sweeps per read</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={5000}
+                    step={1}
+                    value={sweeps}
+                    onChange={(event) =>
+                      setSweeps(Math.min(5000, Math.max(1, Number(event.target.value) || 1)))
+                    }
+                  />
+                  <small>Monte-Carlo sweeps in each annealing run.</small>
+                </label>
+                <label className="param">
+                  <span>Penalty multiplier</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    step={0.5}
+                    value={penaltyMultiplier}
+                    onChange={(event) =>
+                      setPenaltyMultiplier(
+                        Math.min(10, Math.max(1, Number(event.target.value) || 1)),
+                      )
+                    }
+                  />
+                  <small>
+                    P = multiplier x (|linear| + |quadratic|) + 1, which keeps every one-hot
+                    violation strictly worse than any valid assignment.
+                  </small>
+                </label>
+              </div>
+              <p className="faint" style={{ fontSize: 'var(--fs-xs)', marginTop: 'var(--s-3)' }}>
+                Device defaults for this machine: {workload.annealing.reads} reads,{' '}
+                {workload.annealing.sweeps} sweeps, {workload.annealing.runs} runs,{' '}
+                {formatInt(workload.surrogate.trainSize)} surrogate training rows.{' '}
+                {state.capability.reason}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  style={{ marginLeft: 'var(--s-2)' }}
+                  onClick={() => {
+                    setSeed(DEFAULT_RUN_CONFIG.seed);
+                    setReads(workload.annealing.reads);
+                    setSweeps(workload.annealing.sweeps);
+                    setPenaltyMultiplier(DEFAULT_RUN_CONFIG.penaltyMultiplier);
+                  }}
+                >
+                  Reset to device defaults
+                </Button>
+              </p>
+            </Card>
+          </section>
+        </Researcher>
+
         {/* ---------------- PIPELINE ---------------- */}
-        <section style={{ marginTop: 'var(--s-7)' }}>
+        <section className="section">
           <div
             className="spread"
             style={{ alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 'var(--s-4)' }}
           >
             <div>
               <h2 className="section-title">The nine stages, for real</h2>
-              <p className="screen-purpose">
-                These are the actual steps the computation takes, reported by the worker as it
-                runs. Nothing here is a decorative animation.
-              </p>
+              <Researcher>
+                <p className="section-lede">
+                  Stage progress comes from worker messages, not from a timer. A stage that
+                  cannot report a fraction shows elapsed time rather than a synthetic
+                  percentage. The run parameters are below.
+                </p>
+              </Researcher>
+              <Beginner>
+                <p className="plain-note">
+                  These are the real steps the computation takes. Nothing here is a decorative
+                  progress animation.
+                </p>
+              </Beginner>
             </div>
             <div className="row-wrap">
               {state.status === 'running' ? (
@@ -349,8 +479,10 @@ export function OptimiseScreen(): JSX.Element {
                   onClick={() =>
                     startRun({
                       lambda: state.lambda,
+                      seed,
+                      penaltyMultiplier,
                       surrogate: { alpha: 1e-6, ...workload.surrogate },
-                      annealing: workload.annealing,
+                      annealing: { ...workload.annealing, reads, sweeps },
                     })
                   }
                   disabled={state.status === 'idle' || state.status === 'loadingModel'}
@@ -460,8 +592,10 @@ export function OptimiseScreen(): JSX.Element {
                   onClick={() =>
                     startRun({
                       lambda: state.lambda,
+                      seed,
+                      penaltyMultiplier,
                       surrogate: { alpha: 1e-6, ...workload.surrogate },
-                      annealing: workload.annealing,
+                      annealing: { ...workload.annealing, reads, sweeps },
                     })
                   }
                   disabled={state.status === 'idle' || state.status === 'loadingModel'}

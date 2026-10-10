@@ -38,6 +38,46 @@ constraint (exactly one family per position) is enforced with a penalty `P`
 bounded above the whole objective range, so the 48-variable binary form is
 exactly equivalent to the class-space problem.
 
+## Molecular chemistry: depiction is separate from optimisation
+
+The optimiser searches amino-acid **classes**. A class is not a molecule, so a
+class sequence cannot be drawn as one without first choosing a member of each
+class. That choice is made explicitly, by the user or by the documented
+representative, and `src/chem` is structurally unable to influence a score:
+nothing in `src/science` imports from it.
+
+From a chosen residue sequence the chemistry layer builds a real connection
+table — every heavy atom with its standard PDB name, every bond with an
+explicit Kekule order — and from that derives the SMILES, the molecular
+formula, the average and monoisotopic mass, the ring and rotatable-bond counts,
+and a 3D conformer. The conformer is built by the Natural Extension Reference
+Frame construction from tabulated equilibrium bond lengths and angles, with
+textbook backbone torsions, exact planar templates for the aromatic rings, and
+a short steric-relief minimisation. It is an **idealised generated conformer**:
+not an experimental structure, not a molecular-dynamics result, not a docking
+pose, and every surface that shows it says so.
+
+| Library | Role | Loaded |
+| --- | --- | --- |
+| [RDKit](https://www.rdkit.org/) MinimalLib (WebAssembly) | 2D structure depiction, and the independent check on our own chemistry | On demand; the landing-page diagram is pre-rendered at build time by the same engine |
+| [3Dmol.js](https://3dmol.csb.pitt.edu/) | 3D molecular viewer, standard CPK element colouring | On demand, only when the 3D view is opened |
+
+Correctness is not asserted, it is checked. `tests/chem/chemistry.test.ts`
+verifies the published molecular formula and mass of all nineteen free amino
+acids, the condensation identity `sum(residues) - (n-1) H2O` for whole
+peptides, neutral valence at every atom, L handedness at every alpha carbon,
+planarity and bond lengths of every aromatic ring, trans peptide bonds, and the
+absence of steric clashes. `tests/chem/rdkit-crosscheck.test.ts` then hands the
+same molecules to RDKit and requires it to agree on formula, both masses, ring
+counts and the CIP descriptor at every stereocentre — including the (2S,3S)
+isoleucine and (2S,3R) threonine centres, one of which this cross-check caught
+being wrong.
+
+```bash
+cd web
+npx vitest run tests/chem     # the chemistry layer and the RDKit cross-check
+```
+
 ## Running the benchmark
 
 ```bash

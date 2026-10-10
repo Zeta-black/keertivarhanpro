@@ -571,14 +571,17 @@
   color: var(--text-faint);
 }
 
+/* Benchmark markers are absolutely positioned at their own value on the
+   linear scale, so the row reads as an axis rather than as five equal steps. */
 .slider-ticks {
-  display: flex;
-  justify-content: space-between;
+  position: relative;
+  height: 30px;
   margin-top: var(--s-2);
-  gap: var(--s-1);
 }
 
 .slider-tick {
+  position: absolute;
+  transform: translateX(-50%);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   padding: 2px var(--s-2);
@@ -749,15 +752,22 @@
 }
 
 .palette-name {
+  display: block;
   font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
   color: var(--text-strong);
   line-height: 1.25;
 }
 
+/* Its own line: run inline with the name, the family index reads as part of
+   the name ("Large aromatic ring1"). */
 .palette-meta {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
   color: var(--text-muted);
+  letter-spacing: 0.04em;
 }
 
 /* Class colour bindings, applied by data attribute so one rule covers all. */
@@ -1202,4 +1212,1214 @@
     padding-inline: var(--s-2);
     font-size: var(--fs-xs);
   }
+}
+
+/* ================================================================== *
+ * MOLECULAR STRUCTURE VIEWERS
+ *
+ * One panel shape serves the 2D chemical diagram (RDKit) and the 3D model
+ * (3Dmol.js). The panel is deliberately plain: a border, a header strip and
+ * a caption. The structure is the only thing with visual weight in it.
+ * ================================================================== */
+
+.viewer-panel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.viewer-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-sunken);
+}
+
+.viewer-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.viewer-seq {
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.14em;
+  color: var(--text-strong);
+}
+
+.viewer-formula {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.viewer-dot {
+  color: var(--text-faint);
+}
+
+/* Chemical subscripts keep the notation but stay readable: the formula itself
+   steps up to the small size so the subscript lands near the body minimum. */
+.viewer-formula {
+  font-size: var(--fs-sm);
+}
+
+.formula sub {
+  font-size: 0.82em;
+  vertical-align: baseline;
+  position: relative;
+  top: 0.22em;
+}
+
+/* A two-state switch, not a tab bar: there are exactly two views. */
+.viewer-switch {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.viewer-switch-btn {
+  padding: 6px 12px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  min-height: 32px;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.viewer-switch-btn + .viewer-switch-btn {
+  border-left: 1px solid var(--border);
+}
+
+.viewer-switch-btn:hover {
+  color: var(--text-strong);
+  background: var(--surface-sunken);
+}
+
+.viewer-switch-btn[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.viewer-body {
+  position: relative;
+  padding: var(--s-3);
+  background: var(--surface);
+}
+
+.viewer-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-sunken);
+}
+
+.viewer-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.viewer-control select {
+  min-height: 34px;
+  padding: 0 var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-xs);
+}
+
+.viewer-control-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 34px;
+}
+
+.viewer-control-inline input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.viewer-note {
+  flex: 1 1 24ch;
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  max-width: 62ch;
+}
+
+.viewer-downloads {
+  display: flex;
+  gap: var(--s-2);
+  margin-left: auto;
+}
+
+.viewer-foot {
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-muted);
+}
+
+.viewer-foot strong {
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-weight: var(--fw-semibold);
+}
+
+/* ---- 2D depiction ---- */
+
+.struct2d {
+  display: grid;
+  place-items: center;
+  width: 100%;
+}
+
+.struct2d-figure {
+  margin: 0;
+  width: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.struct2d-figure svg {
+  max-width: 100%;
+  height: auto;
+  /* RDKit emits a white rect when a background is requested; we request a
+     transparent one, so nothing needs hiding here. */
+}
+
+.struct2d-state {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-2);
+  padding: var(--s-6) var(--s-4);
+  text-align: center;
+  max-width: 48ch;
+}
+
+.struct2d-state-title {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-strong);
+}
+
+.struct2d-state .muted {
+  font-size: var(--fs-xs);
+  margin: 0;
+}
+
+.struct2d-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: struct-spin 760ms linear infinite;
+}
+
+@keyframes struct-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- 3D viewer ---- */
+
+.struct3d {
+  position: relative;
+  width: 100%;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+
+.struct3d-host canvas {
+  display: block;
+}
+
+.struct3d-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--s-2);
+  padding: var(--s-5);
+  text-align: center;
+  background: var(--surface-sunken);
+}
+
+/* ---- Element legend, shared by both views ---- */
+
+.element-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.element-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+}
+
+.element-legend .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+}
+
+/* ================================================================== *
+ * RESIDUE PICKER
+ *
+ * A class chip with the concrete amino acid chosen inside it. The two levels
+ * are visually nested because they are scientifically nested: the optimiser
+ * picks the class, the user picks the member.
+ * ================================================================== */
+
+.residue-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: var(--s-2);
+}
+
+.residue-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.residue-cell[data-active='true'] {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-glow);
+}
+
+.residue-cell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+.residue-cell-pos {
+  font-family: var(--font-mono);
+}
+
+.residue-class-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+.residue-class-chip .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.residue-cell select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-sunken);
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.residue-cell select:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+.residue-cell-note {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  line-height: var(--lh-snug);
+}
+
+/* ================================================================== *
+ * PAGE STRUCTURE
+ *
+ * Sections, headings and figure rows shared by all six screens, so the
+ * rhythm is identical everywhere and no screen invents its own spacing.
+ * ================================================================== */
+
+.section {
+  margin-top: var(--s-8);
+}
+
+.section-head {
+  max-width: 76ch;
+  margin-bottom: var(--s-5);
+}
+
+.section-lede {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: var(--lh-base);
+  max-width: 76ch;
+}
+
+.section-note {
+  margin-top: var(--s-4);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+.section-note code {
+  font-size: inherit;
+}
+
+/* ---- Hero ---- */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s-7);
+  align-items: start;
+  padding-top: var(--s-6);
+}
+
+.hero-title {
+  font-size: var(--fs-3xl);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  margin: var(--s-3) 0 var(--s-4);
+  text-wrap: balance;
+}
+
+.hero-lede {
+  font-size: var(--fs-md);
+  color: var(--text);
+  max-width: 52ch;
+  line-height: var(--lh-base);
+}
+
+.hero-facts {
+  margin: var(--s-5) 0 0;
+  display: grid;
+  gap: var(--s-3);
+  border-left: 2px solid var(--border-strong);
+  padding-left: var(--s-4);
+}
+
+.hero-facts dt {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--text-faint);
+}
+
+.hero-facts dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  max-width: 54ch;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-6);
+}
+
+.hero-meta {
+  margin-top: var(--s-4);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+.hero-structure {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.hero-structure-caption {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: var(--lh-base);
+}
+
+.link-button {
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link-button:hover {
+  color: var(--accent-strong);
+}
+
+/* ---- Figure row: a few real numbers, no card chrome ---- */
+
+.figure-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--s-5);
+  padding: var(--s-5) 0;
+  border-block: 1px solid var(--border-subtle);
+}
+
+.figure-item {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
+.figure-value {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-semibold);
+  color: var(--text-strong);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.figure-label {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: var(--lh-snug);
+}
+
+/* ---- Amino-acid family grid ---- */
+
+.family-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--s-3);
+}
+
+.family-card {
+  padding: var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  display: grid;
+  gap: var(--s-2);
+  align-content: start;
+}
+
+.family-card header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.family-card h3 {
+  font-size: var(--fs-sm);
+  margin: 0;
+}
+
+.family-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.family-residues {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-strong);
+  letter-spacing: 0.04em;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  align-items: baseline;
+}
+
+.family-count {
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  letter-spacing: normal;
+}
+
+.family-property {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ---- Numbered step list ---- */
+
+.step-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--s-5);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.step-list li {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+}
+
+.step-index {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+
+.step-list h3 {
+  font-size: var(--fs-sm);
+  margin: 2px 0 var(--s-2);
+}
+
+.step-list p {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.step-detail {
+  margin-top: var(--s-2) !important;
+  font-size: var(--fs-xs) !important;
+  color: var(--text-faint) !important;
+}
+
+@media (max-width: 960px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-6);
+  }
+}
+
+/* ================================================================== *
+ * WORKBENCH LAYOUT (Build & Explore)
+ *
+ * Editor on the left, molecule on the right, both visible at once. The
+ * structure column sticks while the editor scrolls, so an edit and its
+ * chemical consequence are never on different screens.
+ * ================================================================== */
+
+.workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+  gap: var(--s-5);
+  align-items: start;
+}
+
+.workbench-structure {
+  position: sticky;
+  top: calc(var(--nav-h) + var(--s-4));
+}
+
+@media (max-width: 1100px) {
+  .workbench {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workbench-structure {
+    position: static;
+  }
+}
+
+.panel-head {
+  margin-bottom: var(--s-3);
+}
+
+.panel-head h2 {
+  font-size: var(--fs-md);
+  margin: 0;
+}
+
+.panel-head p {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  max-width: 68ch;
+}
+
+.panel-subhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+  font-size: var(--fs-sm);
+  margin: 0 0 var(--s-3);
+  color: var(--text-strong);
+}
+
+.panel-subhead-note {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-regular);
+  color: var(--text-faint);
+}
+
+.panel-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+.panel-meta code {
+  font-size: var(--fs-xs);
+  background: var(--surface-sunken);
+  padding: 3px 7px;
+  border-radius: var(--r-sm);
+  overflow-wrap: anywhere;
+}
+
+/* ---- Molecular property grid ---- */
+
+.prop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: var(--s-3);
+  margin: 0 0 var(--s-3);
+}
+
+.prop-grid dt {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.prop-grid dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.residue-detail {
+  margin-top: var(--s-3);
+  padding: var(--s-3);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--surface-sunken);
+}
+
+.residue-detail h4 {
+  font-size: var(--fs-sm);
+  margin: 0 0 var(--s-2);
+}
+
+.residue-detail p {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: var(--lh-base);
+}
+
+.residue-detail p + p {
+  margin-top: var(--s-2);
+  color: var(--text-faint);
+}
+
+.score-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--s-4);
+  margin-top: var(--s-4);
+}
+
+/* The single site-wide disclosure line. Deliberately typographic rather than a
+   card: the detailed scientific-validity assessment lives once, at the bottom
+   of Results, and this line is only a pointer to it. */
+.footer-disclosure {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--border-subtle);
+  margin: 0;
+}
+
+/* ================================================================== *
+ * SCIENTIFIC VALIDITY ASSESSMENT (Results, bottom of page, once)
+ * ================================================================== */
+
+.validity {
+  border-top: 2px solid var(--border-strong);
+  padding-top: var(--s-6);
+}
+
+.validity-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--s-4);
+  margin-bottom: var(--s-5);
+}
+
+.validity-count {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'value chip'
+    'meaning meaning';
+  align-items: center;
+  gap: 4px var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.validity-count-value {
+  grid-area: value;
+  font-family: var(--font-mono);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+}
+
+.validity-count .validity-chip {
+  grid-area: chip;
+  justify-self: start;
+}
+
+.validity-count-meaning {
+  grid-area: meaning;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: var(--lh-snug);
+  margin-top: 4px;
+}
+
+.validity-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--chip, var(--border-strong));
+  color: var(--chip, var(--text));
+  background: color-mix(in srgb, var(--chip, var(--accent)) 12%, transparent);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+
+.validity-table td {
+  vertical-align: top;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+}
+
+.validity-evidence {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.validity-limits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--s-4);
+  margin: var(--s-5) 0;
+}
+
+.validity-next {
+  margin: var(--s-3) 0 0;
+  display: grid;
+  gap: var(--s-3);
+}
+
+.validity-next dt {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-strong);
+}
+
+.validity-next dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: var(--lh-base);
+}
+
+/* Keyboard-reachable position selector that sits beside the contribution
+   chart. The chart itself is role="img" and therefore cannot contain
+   controls, so this row carries the same information and the same action. */
+.position-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+
+.position-pick {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: var(--touch-min);
+  min-height: 38px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.position-pick:hover {
+  border-color: var(--border-strong);
+  color: var(--text-strong);
+}
+
+.position-pick[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--text-strong);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.position-pick-dot {
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+/* Selected-candidate detail: composition table beside the molecule it
+   corresponds to, so a ranked class sequence and a real structure are read
+   together rather than on different screens. */
+.compare-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: var(--s-4);
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .compare-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A row of statistics that share one provenance. The label sits once, above
+   the row, instead of on every tile in it. */
+.stat-group {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.stat-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.stat-group-note {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/* The tour invitation keeps its words where there is room for them. */
+@media (max-width: 900px) {
+  .tour-invite {
+    display: none;
+  }
+}
+
+/* ================================================================== *
+ * BEGINNER / RESEARCHER MODE
+ *
+ * The two modes change what is explained and what is exposed, never what is
+ * computed. These are the two shapes that carries.
+ * ================================================================== */
+
+/* Beginner-only gloss. Always visible rather than behind a tooltip: a reader
+   who does not know a word does not know to hover it. */
+.plain-note {
+  margin: var(--s-2) 0 0;
+  padding-left: var(--s-3);
+  border-left: 2px solid var(--accent);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: var(--lh-base);
+  max-width: 72ch;
+}
+
+/* Researcher-only equation block. */
+.equation {
+  margin: var(--s-3) 0 0;
+}
+
+.equation-body {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  color: var(--text-strong);
+  white-space: pre;
+}
+
+.equation figcaption {
+  margin-top: var(--s-2);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/* The mode switch tells the reader what it does before they press it. */
+.mode-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  margin: 0;
+}
+
+/* ================================================================== *
+ * THE QUANTUM PIPELINE
+ *
+ * A stage list where each stage states what it ran on. The colour is the
+ * signal: accent for classical work that happened, violet for the
+ * quantum-compatible encoding, red for the step that did not run.
+ * ================================================================== */
+
+.quantum-stages {
+  list-style: none;
+  padding: 0;
+  margin: var(--s-4) 0 0;
+  display: grid;
+  gap: var(--s-3);
+}
+
+.quantum-stages li {
+  padding: var(--s-4);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--chip, var(--border-strong));
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.quantum-stages li[data-hardware='classical'] {
+  --chip: var(--accent);
+}
+
+.quantum-stages li[data-hardware='formulation'] {
+  --chip: var(--optimise);
+}
+
+.quantum-stages li[data-hardware='none'] {
+  --chip: var(--danger);
+  background: color-mix(in srgb, var(--danger) 5%, var(--surface));
+}
+
+.quantum-stage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-2);
+}
+
+.quantum-stage-n {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--chip) 16%, transparent);
+  border: 1px solid var(--chip);
+  color: var(--chip);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+}
+
+.quantum-stage-head h4 {
+  font-size: var(--fs-sm);
+  margin: 0;
+  flex: 1 1 18ch;
+}
+
+.quantum-stage-tag {
+  flex: none;
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--chip);
+  color: var(--chip);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+.quantum-stage-body {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: var(--lh-base);
+  max-width: 82ch;
+}
+
+/* The one-sentence answer, before any detail. */
+.answer-lead {
+  font-size: var(--fs-md);
+  line-height: var(--lh-base);
+  color: var(--text);
+  max-width: 76ch;
+  margin-top: var(--s-3);
+}
+
+/* Researcher-only identifier list: long machine-readable strings that must
+   stay selectable and must not force the panel wider. */
+.identifier-list {
+  display: grid;
+  gap: var(--s-3);
+  margin: 0 0 var(--s-3);
+}
+
+.identifier-list dt {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+.identifier-list dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+
+/* The mode primer on the landing page: the one place the two modes introduce
+   themselves, so the header switch is not an unexplained control. */
+.primer {
+  padding: var(--s-5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.primer-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--s-4);
+  margin: var(--s-4) 0 0;
+}
+
+.primer-list dt {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-strong);
+}
+
+.primer-list dd {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: var(--lh-base);
+}
+
+.primer-foot {
+  margin: var(--s-5) 0 0;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/* Researcher run parameters. Real inputs, laid out so the unit and the effect
+   of each one are next to the field rather than in a tooltip. */
+.param-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--s-4);
+}
+
+.param {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.param > span {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-strong);
+}
+
+.param input {
+  min-height: 38px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-sunken);
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.param input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.param small {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  line-height: var(--lh-snug);
 }

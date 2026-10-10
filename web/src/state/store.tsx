@@ -18,6 +18,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { defaultResidues, reconcileResidues, residueBelongsToClass } from '../chem/peptide';
 import { LENGTH, indexToCodes, isValidCodes } from '../science/alphabet';
 import { DEFAULT_LAMBDA } from '../science/objective';
 import {
@@ -63,6 +64,7 @@ export function initialState(): AppState {
     replay: null,
     config: DEFAULT_RUN_CONFIG,
     draftCodes: [...REFERENCE_CODES],
+    draftResidues: defaultResidues(REFERENCE_CODES),
     baselineCodes: [...REFERENCE_CODES],
     draftScore: null,
     previousScore: null,
@@ -95,6 +97,7 @@ export type Action =
   | { type: 'SCORING_STARTED' }
   | { type: 'SET_DRAFT'; codes: number[]; recordHistory?: boolean }
   | { type: 'SET_POSITION'; position: number; classIndex: number }
+  | { type: 'SET_RESIDUE'; position: number; residue: string }
   | { type: 'UNDO' }
   | { type: 'REDO' }
   | { type: 'RESET_DRAFT' }
@@ -116,6 +119,23 @@ export type Action =
   | { type: 'RESET_ALL' };
 
 const MAX_HISTORY = 50;
+
+/**
+ * Applies a new class sequence and re-snaps the displayed residues onto it.
+ *
+ * Every path that changes `draftCodes` goes through here, which is what
+ * guarantees the displayed molecule is always a member of the class sequence
+ * being scored.
+ */
+function withCodes(state: AppState, codes: number[], record: boolean): AppState {
+  return {
+    ...state,
+    draftCodes: [...codes],
+    draftResidues: reconcileResidues(codes, state.draftResidues),
+    history: record ? [...state.history, state.draftCodes].slice(-MAX_HISTORY) : state.history,
+    future: record ? [] : state.future,
+  };
+}
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -141,15 +161,7 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case 'SET_DRAFT': {
       if (!isValidCodes(action.codes)) return state;
-      const record = action.recordHistory !== false;
-      return {
-        ...state,
-        draftCodes: [...action.codes],
-        history: record
-          ? [...state.history, state.draftCodes].slice(-MAX_HISTORY)
-          : state.history,
-        future: record ? [] : state.future,
-      };
+      return withCodes(state, action.codes, action.recordHistory !== false);
     }
 
     case 'SET_POSITION': {
@@ -158,12 +170,25 @@ export function reducer(state: AppState, action: Action): AppState {
       if (state.draftCodes[position] === classIndex) return state;
       const next = [...state.draftCodes];
       next[position] = classIndex;
-      return {
-        ...state,
-        draftCodes: next,
-        history: [...state.history, state.draftCodes].slice(-MAX_HISTORY),
-        future: [],
-      };
+      // The residue at this position is replaced by the new class's
+      // representative, because the previous residue is not a member of it.
+      return withCodes(
+        { ...state, draftResidues: state.draftResidues.map((r, i) => (i === position ? '' : r)) },
+        next,
+        true,
+      );
+    }
+
+    case 'SET_RESIDUE': {
+      const { position, residue } = action;
+      if (position < 0 || position >= LENGTH) return state;
+      if (!residueBelongsToClass(residue, state.draftCodes[position])) return state;
+      if (state.draftResidues[position] === residue) return state;
+      const next = [...state.draftResidues];
+      next[position] = residue.toUpperCase();
+      // No history entry and no score invalidation: this changes the molecule
+      // that is drawn, never the class sequence that is scored.
+      return { ...state, draftResidues: next };
     }
 
     case 'UNDO': {
@@ -172,6 +197,7 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         draftCodes: [...previous],
+        draftResidues: reconcileResidues(previous, state.draftResidues),
         history: state.history.slice(0, -1),
         future: [state.draftCodes, ...state.future].slice(0, MAX_HISTORY),
       };
@@ -183,6 +209,7 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         draftCodes: [...next],
+        draftResidues: reconcileResidues(next, state.draftResidues),
         history: [...state.history, state.draftCodes].slice(-MAX_HISTORY),
         future: rest,
       };
@@ -191,12 +218,7 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'RESET_DRAFT': {
       const target = state.baselineCodes ?? REFERENCE_CODES;
       if (target.every((c, i) => c === state.draftCodes[i])) return state;
-      return {
-        ...state,
-        draftCodes: [...target],
-        history: [...state.history, state.draftCodes].slice(-MAX_HISTORY),
-        future: [],
-      };
+      return withCodes(state, [...target], true);
     }
 
     case 'SET_LAMBDA': {
@@ -291,6 +313,7 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         draftCodes: [...found.codes],
+        draftResidues: reconcileResidues(found.codes, state.draftResidues),
         lambda: found.lambda,
         history: [...state.history, state.draftCodes].slice(-MAX_HISTORY),
         future: [],

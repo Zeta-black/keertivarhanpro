@@ -242,9 +242,9 @@ export const MIGRATION_MAP = [
   {
     legacy: 'Honesty',
     legacySource: 'docs/evidence.md, run_metadata warnings',
-    screen: 'understand' as ScreenId,
-    section: 'What this does and does not show',
-    note: 'States plainly that no quantum hardware ran and nothing was tested in a laboratory.',
+    screen: 'results' as ScreenId,
+    section: 'Scientific validity assessment',
+    note: 'Consolidated into one assessment at the bottom of Results, with a status and the evidence for every claim, rather than repeated on every screen.',
   },
 ] as const;
 
