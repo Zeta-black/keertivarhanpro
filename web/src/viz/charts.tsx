@@ -15,6 +15,8 @@
 
 import { useId, useMemo, useRef, useState } from 'react';
 
+import { groupInt } from '../content/format';
+
 const PAD = { top: 16, right: 18, bottom: 44, left: 58 };
 
 export interface Scale {
@@ -333,7 +335,12 @@ export function LineChart({
 }
 
 /* ------------------------------------------------------------------ *
- * Scatter with a highlighted Pareto frontier
+ * Density background plus an exact Pareto frontier
+ *
+ * `density` cells are a binned count of EVERY design; `points` are the
+ * frontier (and the objective optimum). There is no random sample here - the
+ * chart used to plot 1,200 random dots, which drew the frontier of the sample
+ * rather than the frontier of the problem.
  * ------------------------------------------------------------------ */
 export function ScatterChart({
   title,
@@ -341,6 +348,10 @@ export function ScatterChart({
   xLabel,
   yLabel,
   points,
+  density,
+  densityMax,
+  densityBinSize,
+  densityLabel = 'designs per cell',
   height = 340,
   selectedIndex,
   onSelect,
@@ -358,6 +369,10 @@ export function ScatterChart({
     onFrontier: boolean;
     label?: string;
   }[];
+  readonly density?: readonly { x: number; y: number; count: number }[];
+  readonly densityMax?: number;
+  readonly densityBinSize?: { x: number; y: number };
+  readonly densityLabel?: string;
   readonly height?: number;
   readonly selectedIndex?: number | null;
   readonly onSelect?: (index: number) => void;
@@ -365,45 +380,82 @@ export function ScatterChart({
   readonly svgRef?: React.Ref<SVGSVGElement>;
 }): JSX.Element {
   const [hover, setHover] = useState<number | null>(null);
-  const xDomain = useMemo<[number, number]>(
-    () =>
-      points.length
-        ? niceDomain(Math.min(...points.map((p) => p.x)), Math.max(...points.map((p) => p.x)))
-        : [0, 1],
-    [points],
-  );
-  const yDomain = useMemo<[number, number]>(
-    () =>
-      points.length
-        ? niceDomain(Math.min(...points.map((p) => p.y)), Math.max(...points.map((p) => p.y)))
-        : [0, 1],
-    [points],
-  );
+
+  // The domain must cover the density too, or the histogram gets clipped at
+  // the edges where the frontier does not reach.
+  const xDomain = useMemo<[number, number]>(() => {
+    const xs = [...points.map((p) => p.x), ...(density ?? []).map((c) => c.x)];
+    return xs.length ? niceDomain(Math.min(...xs), Math.max(...xs)) : [0, 1];
+  }, [points, density]);
+  const yDomain = useMemo<[number, number]>(() => {
+    const ys = [...points.map((p) => p.y), ...(density ?? []).map((c) => c.y)];
+    return ys.length ? niceDomain(Math.min(...ys), Math.max(...ys)) : [0, 1];
+  }, [points, density]);
+
   const frontier = points.filter((p) => p.onFrontier).sort((a, b) => a.x - b.x);
+  const totalDesigns = (density ?? []).reduce((sum, cell) => sum + cell.count, 0);
+  const peak = densityMax ?? Math.max(1, ...(density ?? []).map((c) => c.count));
+
+  const legend = [
+    ...(density && density.length
+      ? [{ label: densityLabel, colour: 'var(--accent-dim)', shape: 'square' as const }]
+      : []),
+    { label: 'Best trade-off (frontier)', colour: 'var(--success)', shape: 'round' as const },
+    { label: 'Selected', colour: 'var(--accent)', shape: 'round' as const },
+  ];
 
   return (
     <PlotFrame
       title={title}
       subtitle={subtitle}
       summary={
-        `Scatter plot of ${points.length} sampled designs. ${xLabel} horizontally, ` +
-        `${yLabel} vertically. ${frontier.length} designs lie on the best-trade-off frontier.`
+        (density && density.length
+          ? `Density plot of all ${groupInt(totalDesigns)} designs, binned into ` +
+            `${groupInt(density.length)} occupied cells. `
+          : `Plot of ${points.length} designs. `) +
+        `${xLabel} horizontally, ${yLabel} vertically. ` +
+        `${frontier.length} designs lie on the exact best-trade-off frontier.`
       }
       height={height}
       xLabel={xLabel}
       yLabel={yLabel}
       xDomain={xDomain}
       yDomain={yDomain}
-      legend={[
-        { label: 'Sampled design', colour: 'var(--text-faint)', shape: 'round' },
-        { label: 'Best trade-off (frontier)', colour: 'var(--success)', shape: 'round' },
-        { label: 'Selected', colour: 'var(--accent)', shape: 'round' },
-      ]}
+      legend={legend}
       svgRef={svgRef}
       footer={footer}
     >
       {({ x, y }) => (
         <>
+          {density && density.length ? (
+            <g aria-hidden="true">
+              {density.map((cell) => {
+                // Cell centres come from the worker; derive the rectangle from
+                // the bin size so adjacent cells tile without gaps.
+                const halfX = (densityBinSize?.x ?? 0) / 2;
+                const halfY = (densityBinSize?.y ?? 0) / 2;
+                const left = x(cell.x - halfX);
+                const right = x(cell.x + halfX);
+                const top = y(cell.y + halfY);
+                const bottom = y(cell.y - halfY);
+                // Log scale: counts span several orders of magnitude, and a
+                // linear ramp renders everything except the densest band as
+                // flat background.
+                const weight = Math.log1p(cell.count) / Math.log1p(peak);
+                return (
+                  <rect
+                    key={`${cell.x}:${cell.y}`}
+                    x={Math.min(left, right)}
+                    y={Math.min(top, bottom)}
+                    width={Math.max(1, Math.abs(right - left))}
+                    height={Math.max(1, Math.abs(bottom - top))}
+                    fill="var(--accent)"
+                    opacity={0.06 + 0.72 * weight}
+                  />
+                );
+              })}
+            </g>
+          ) : null}
           {frontier.length > 1 ? (
             <path
               d={frontier.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.x)},${y(p.y)}`).join(' ')}
@@ -422,24 +474,25 @@ export function ScatterChart({
                 key={p.index}
                 cx={x(p.x)}
                 cy={y(p.y)}
-                r={selected ? 7 : p.onFrontier ? 4.5 : 2.8}
+                r={selected ? 7 : 4.2}
                 fill={
                   selected
                     ? 'var(--accent)'
                     : p.onFrontier
                       ? 'var(--success)'
-                      : 'var(--text-faint)'
+                      : 'var(--attention)'
                 }
                 stroke={selected || isHover ? 'var(--text-strong)' : 'none'}
                 strokeWidth={selected || isHover ? 1.8 : 0}
-                opacity={selected || p.onFrontier ? 1 : 0.5}
                 style={{ cursor: onSelect ? 'pointer' : 'default' }}
-                tabIndex={p.onFrontier && onSelect ? 0 : -1}
+                tabIndex={onSelect ? 0 : -1}
                 role={onSelect ? 'button' : undefined}
                 aria-label={
                   p.label ??
                   `Design ${p.index}: ${xLabel} ${fmt(p.x)}, ${yLabel} ${fmt(p.y)}` +
-                    (p.onFrontier ? ', on the frontier' : '')
+                    (p.onFrontier
+                      ? ', on the best-trade-off frontier'
+                      : ', the objective optimum at this priority')
                 }
                 onMouseEnter={() => setHover(p.index)}
                 onMouseLeave={() => setHover(null)}

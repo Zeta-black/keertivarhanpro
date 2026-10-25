@@ -399,25 +399,43 @@ export function respondTo(message: WorkerRequest): WorkerResponse[] {
         },
       ];
 
-    case 'pareto':
+    case 'pareto': {
+      // Mirrors the real payload shape: an exact frontier plus a binned
+      // density of the whole space. Four designs and four cells is enough to
+      // exercise the wiring; the real worker bins all 1,679,616.
+      const frontier = [0, 7, 42, 1000].map((index, i) => {
+        const s = scoreAll(indexToCodes(index), model.flat);
+        return {
+          index,
+          pet: s.PET,
+          worstOff: Math.max(s.PE, s.PP),
+          objective: objective(s, message.lambda),
+          onFrontier: i < 3,
+        };
+      });
+      const density = frontier.map((point, i) => ({
+        x: point.pet,
+        y: point.worstOff,
+        count: (i + 1) * 1000,
+      }));
       return [
         {
           kind: 'pareto',
           runId: message.runId,
-          lambda: message.lambda,
-          points: [0, 7, 42, 1000].map((index, i) => {
-            const s = scoreAll(indexToCodes(index), model.flat);
-            return {
-              index,
-              pet: s.PET,
-              worstOff: Math.max(s.PE, s.PP),
-              objective: objective(s, message.lambda),
-              onFrontier: i === 0,
-            };
-          }),
-          sampled: 4,
+          payload: {
+            lambda: message.lambda,
+            frontier,
+            density,
+            evaluated: VALID_SEQUENCES,
+            bins: { x: 150, y: 110 },
+            binSize: { x: 1, y: 1 },
+            maxCount: 4000,
+            optimumIndex: 0,
+            computeMs: 180,
+          },
         },
       ];
+    }
 
     case 'cancel':
       return [{ kind: 'cancelled', runId: message.runId, atStage: null }];

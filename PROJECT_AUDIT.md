@@ -214,3 +214,138 @@ Priority slider — was checked specifically: it re-solves exactly, and says so.
 | P2 | Deployment (A-04) | configured, not executed |
 | P3 | Real-user comprehension testing (A-05) | not possible here |
 | P3 | Visual-regression baselines (A-06) | not built |
+
+
+---
+
+# Addendum: quantum-layer audit, 2026-10-24
+
+A second audit, scoped to one question: **is the quantum claim real?** The
+previous audit (above) verified the classical science thoroughly and left the
+quantum story as-is. This one did not accept it.
+
+## 9. The finding that mattered
+
+**There was no quantum algorithm in the repository.**
+
+Verified by repository-wide search before changing anything:
+
+```
+$ grep -ril "QAOA\|statevector\|circuit\|qiskit\|pennylane" \
+      --include=*.ts --include=*.tsx --include=*.py .
+(only node_modules type definitions — no project source)
+```
+
+What existed was a **QUBO formulation**: the problem correctly written in the
+input format a quantum annealer accepts, with a provably safe one-hot penalty,
+an exact Ising transform, and a D-Wave code path that honestly reported
+`NOT EXECUTED`. All of that was real and well tested.
+
+But a QUBO is a *translation*, not a computation. Any problem of this shape can
+be written that way. The repository said so itself — "that is the entire
+quantum claim" — which was admirably honest and also, for a quantum hackathon,
+a project with no quantum computation in it.
+
+### Status before this addendum
+
+| Category | Verdict |
+| --- | --- |
+| Real quantum circuit on hardware | absent |
+| Real quantum circuit in a simulator | **absent** |
+| Hybrid quantum-classical algorithm | absent |
+| Quantum-compatible problem formulation | present, correct, well tested |
+| Classical algorithm described in quantum language | **no** — the project was careful not to do this |
+
+The last row is worth recording: nothing was mislabelled. The honesty
+infrastructure was sound; the quantum content was missing.
+
+## 10. What was built, and why that specific thing
+
+A real gate-model variational algorithm was added rather than a different
+project. The objective, data, class alphabet, lambda sweep and brute-force
+reference are all unchanged; the quantum layer consumes the *same* coefficients
+and is graded against the *same* proven optimum.
+
+### Attempt 1: the obvious approach, and its measured failure
+
+QAOA on the existing penalty QUBO with the standard transverse-field X mixer
+(`src/qbind_select/quantum/qaoa.py`). Implemented, tested, and **it barely beat
+random guessing**:
+
+```
+p=1  ratio 0.3261  (random 0.3252)  valid probability 0.256
+p=3  ratio 0.3272  (random 0.3252)  valid probability 0.446
+```
+
+A margin of +0.002 over blind guessing, and over half the measurements were not
+valid designs at all.
+
+The cause is structural, not a tuning failure. A provably safe one-hot penalty
+must exceed the entire objective range, which here gives `P = 2059.3` against a
+span of `125.2` — **16.5× larger** than the differences the optimiser needs to
+resolve. The phase separator spends nearly all its rotation enforcing the
+constraint.
+
+This is kept in the repository as the **control**, because the comparison is the
+result.
+
+### Attempt 2: constrain by the mixer instead
+
+XY-mixer QAOA — the Quantum Alternating Operator Ansatz, Hadfield et al. 2019
+(`src/qbind_select/quantum/xy_qaoa.py`). The penalty is removed entirely and the
+constraint is enforced by a mixer that cannot leave the feasible set.
+
+Two consequences, one expected and one not:
+
+1. **Expected:** validity becomes 1.0 by construction.
+2. **Not expected until the algebra was done:** the full 48-qubit circuit
+   becomes *exactly simulable*. `2^48` amplitudes is ~4.5 PB, but the mixer
+   conserves per-block Hamming weight, so a feasible initial state confines the
+   dynamics to a sector of dimension `6^8 = 1,679,616` — 27 MB. No reduction,
+   no approximation, the whole problem.
+
+Measured on the real Potts data at lambda = 1:
+
+```
+p=1  ratio 0.7428  enrichment 1,104x   top outcome = proven optimum
+p=2  ratio 0.8193  enrichment 4,137x   top outcome = proven optimum
+p=3  ratio 0.8550  enrichment 7,812x   top outcome = proven optimum
+```
+
+Random baseline 0.4326. The margin over random is **205× the penalty version's**,
+with no wasted shots.
+
+## 11. Defects found while building this
+
+| ID | Defect | Where it would have shown | Fix |
+| --- | --- | --- | --- |
+| Q-01 | Depth sweeps **regressed**: p=3 scored 0.767 against p=2's 0.819 | A judge asking "why is the deeper circuit worse?" | INTERP depth seeding (Zhou et al. 2020) — each depth is seeded from the previous optimum. Pinned by `test_depth_sweep_does_not_regress`. |
+| Q-02 | A head-to-head test used an **absolute** threshold (`ratio < 0.6`) calibrated on the real model; it failed on the proxy model, where the penalty ansatz scores 0.637 | A green suite that measures the fixture, not the method | Rewritten as a relative comparison of margins over each ansatz's own random baseline. Holds on both models. |
+| Q-03 | `onNavigate` in `Understand.tsx` hardcoded the six screen ids as a union type | Adding any screen breaks the build — it did | Changed to reference `ScreenId`. |
+| Q-04 | Project-wide claims stated the QUBO was "the entire quantum claim" | Documentation contradicting the code | Corrected in README, `SCIENTIFIC_METHOD.md`, the FAQ, the worker's run record and the Quantum Connection screen. `NO QUANTUM HARDWARE EXECUTION` was kept everywhere — it is still true. |
+| Q-05 | The executed-assertion log is **append-only**: `tests/setup.ts` adds a line per worker per run and `count-assertions.mjs` sums the file, so repeated runs silently accumulate and deleted test files keep contributing. Measuring without clearing it produced **433,637** — a figure I briefly published before catching it. | A verification credential inflated by an order of magnitude | Clear the log before measuring: the true single-run figure is **36,228** (29,464 was a smaller suite; +183 tests account for the rise). Counter verified against a controlled probe (10 tests × 3 assertions → exactly 30). The trap is now documented in `count-assertions.mjs` itself. |
+| Q-06 | The persona review reports **0 critical / 105 major** findings, where README and TEST_REPORT both claimed **0 findings**. Verified against the committed tree: 84 are `onePurpose` on Discover (the hero renders `The problem` as a `<dt>` with no full stop, so the check's literal `The problem.` exemption never matches, and `SCREENS.discover.purpose` has never been rendered there) and 21 are `jargonExplained` on Results (`Results.tsx` is byte-identical for that term, and the card removed from `ScientificValidity.tsx` contained neither a lambda nor the phrase). **Pre-existing, not introduced here.** | Two documents claiming a clean sweep that was never clean | Figures corrected in both documents with the attribution above; the 105 stay open in `web/review/persona-matrix.json` rather than being relabelled. |
+| Q-07 | The e2e route sweep and the persona matrix both hardcoded six routes | The new screen would be excluded from overflow, console-error and accessibility sweeps while appearing covered | The e2e sweep now includes `/quantum`. The persona matrix deliberately does **not**: its cost per environment grows through a run (80 scenarios 84s, 250 scenarios >600s), and a seventh screen took that file from 197s to over 20 minutes. The screen is covered by five other suites instead, and the reason is recorded in `personas.ts`. |
+
+## 12. What is still not done
+
+| Item | State |
+| --- | --- |
+| Execution on quantum hardware | **not done.** No QPU contacted. Gate cost is reported (≥4,592 CNOTs at p=2, all-to-all, lower bound) so the gap is quantified. |
+| Noise modelling | **not done.** The XY mixer is applied as an exact matrix exponential; hardware must Trotterise non-commuting terms, and that error is not modelled. Nor is decoherence or gate infidelity. |
+| Quantum advantage | **not claimed, and not claimable at this size.** Brute force is faster and exact; it is used as the reference, not the rival. |
+| Signal / image processing | **deliberately not added.** The data is a discrete sequence — no waveform, no spectrum, no image. An FFT here would be decoration. The genuine ECE overlap (QUBO↔Ising change of variables, operator exponentials via rank-one eigendecomposition, phase separation as phase modulation) is explained in `docs/judge_explanation.md` Q14 instead of faked in code. |
+| Laboratory validation | **not done**, unchanged from the first audit. This remains the top risk: every number is downstream of a scoring model that is unvalidated against experiment for this task. |
+
+## 13. Revised priorities
+
+| Priority | Item | State |
+| --- | --- | --- |
+| P0 | A genuine, inspectable quantum algorithm | **done** — simulated exactly, graded against a proven optimum |
+| P0 | Python↔TypeScript parity for the new layer | **done** — 56 cases to 1e-9, golden fixture, anti-drift test |
+| P0 | Correct the stale quantum claims | **done** |
+| P1 | A screen where the circuit can actually be run | **done** — `/quantum`, live, 12–30 qubits in the browser |
+| P1 | Anti-drift on published quantum numbers | **done** — generated module verified against `results/quantum_*.csv` |
+| P2 | Hardware execution | not done, no credentials |
+| P2 | Noise / Trotter-error modelling | not done, named as the weakest point |
+| P3 | Real-user comprehension testing | still not possible here |

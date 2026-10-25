@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { buildModel, type PottsModel, type PottsModelJson } from '../science/potts';
 import { useStore } from '../state/store';
 
 /**
@@ -114,4 +115,51 @@ export function useDraftScoring(): void {
       lambda: debouncedLambda,
     });
   }, [debouncedKey, debouncedLambda, state.status, send, dispatch]);
+}
+
+/**
+ * Fetch and build the Potts model on the main thread.
+ *
+ * The worker already loads this file for the main pipeline, so by the time any
+ * screen calls this hook the 49 KB JSON is normally in the browser cache. It
+ * exists because the live QAOA on the Quantum screen runs on the main thread
+ * (the reduced slices it uses are small enough that a worker round-trip would
+ * cost more than the computation) and so needs its own handle on the
+ * coefficients.
+ */
+export function usePottsModel(): {
+  readonly model: PottsModel | null;
+  readonly error: string | null;
+  readonly loading: boolean;
+} {
+  const [model, setModel] = useState<PottsModel | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const url = new URL('model/potts_6class_8mer.json', document.baseURI).href;
+    fetch(url)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`model request failed: ${response.status} ${response.statusText}`);
+        }
+        return (await response.json()) as PottsModelJson;
+      })
+      .then((json) => {
+        if (cancelled) return;
+        // buildModel validates shape, class count and pair order, so a
+        // truncated or stale export fails loudly here instead of producing
+        // quietly wrong energies downstream.
+        setModel(buildModel(json));
+      })
+      .catch((cause: unknown) => {
+        if (cancelled) return;
+        setError(cause instanceof Error ? cause.message : 'could not load the scoring model');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { model, error, loading: model === null && error === null };
 }

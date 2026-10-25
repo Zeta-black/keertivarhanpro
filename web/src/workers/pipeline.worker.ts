@@ -58,7 +58,9 @@ import { fitSurrogate } from '../science/surrogate';
 import {
   DEFAULT_RUN_CONFIG,
   type CandidateRecord,
+  type DensityCell,
   type ParetoPoint,
+  type TradeoffPayload,
   type QuboPayload,
   type RunConfig,
   type RunRecord,
@@ -492,7 +494,7 @@ async function runPipeline(runId: string, config: RunConfig): Promise<void> {
       reads: null,
       medianBestEnergy: null,
       stdBestEnergy: null,
-      note: 'NO QUANTUM HARDWARE EXECUTION. No quantum processor was used in this project, in the browser or in the Python benchmark. The QUBO is in a form a quantum annealer could accept, and that is the entire claim.',
+      note: 'NO QUANTUM HARDWARE EXECUTION. No quantum processor was used in this project, in the browser or in the Python benchmark. The QUBO is in a form a quantum annealer could accept; separately, a gate-model XY-mixer QAOA is run on the same objective by exact statevector simulation (see the Quantum screen and results/quantum_*.csv). No speedup is claimed.',
       exact: false,
     });
 
@@ -688,46 +690,162 @@ function buildQuboPayload(
 }
 
 /**
- * Pareto front of PET score against the WORST off-target score, on a sampled
- * subset. Sampling is declared in the response so the UI can label it.
+ * The trade-off chart, computed over EVERY valid design. Nothing is sampled.
+ *
+ * This replaced a random 1,200-design scatter. The frontier that scatter drew
+ * was the frontier *of the sample*, which is not the frontier of the problem:
+ * a random 0.07% of the space will miss most of the staircase. Both parts
+ * below use all 1,679,616 designs.
+ *
+ * Frontier, exactly
+ * -----------------
+ * We want the points no other design beats on both axes (higher PET, lower
+ * worst off-target). Doing that by sorting 1.68 million indices with a JS
+ * comparator is slow, so it is done in two stages:
+ *
+ *   1. Bin the off-target axis. For each bin record the best PET inside it,
+ *      then take a running maximum across bins in increasing off-target order.
+ *      Any design whose PET is below the running maximum of all *earlier* bins
+ *      is dominated - some design has strictly lower off-target and at least
+ *      as much PET - so it can be dropped without comparing it to anything.
+ *      This is a safe prune, not an approximation.
+ *   2. Sort only the survivors and sweep them exactly.
+ *
+ * The survivor set is a few thousand at most, so the sort is trivial and the
+ * result is the true frontier of the whole space.
+ *
+ * Density, honestly
+ * -----------------
+ * A 2D histogram of all designs. Counts are real counts. This is what the
+ * reader sees instead of dots, and because every design lands in a bin, the
+ * picture is of the whole space rather than a sample of it.
  */
-function buildPareto(
+function buildTradeoff(
   scores: FullSpaceScores,
   lambda: number,
-  sampleSize: number,
-  seed: number,
-): ParetoPoint[] {
-  const rng = makeRng(seed);
-  const picked: ParetoPoint[] = [];
-  const seen = new Set<number>();
-  // Always include the exact optimum so the frontier cannot look wrong.
-  const exact = exactBruteForce(scores, lambda, 1);
-  const add = (index: number) => {
-    if (seen.has(index)) return;
-    seen.add(index);
-    picked.push({
-      index,
-      pet: scores.PET[index],
-      worstOff: Math.max(scores.PE[index], scores.PP[index]),
-      objective: objectiveAt(scores, index, lambda),
-      onFrontier: false,
-    });
-  };
-  add(exact.bestIndex);
-  for (let i = 0; picked.length < sampleSize && i < sampleSize * 3; i += 1) {
-    add(rng.int(VALID_SEQUENCES));
+): Omit<TradeoffPayload, 'lambda'> {
+  const startedAt = Date.now();
+  const n = VALID_SEQUENCES;
+  const pet = scores.PET;
+
+  // Worst off-target per design, kept so it is computed once rather than in
+  // every pass below.
+  const off = new Float64Array(n);
+  let petMin = Infinity;
+  let petMax = -Infinity;
+  let offMin = Infinity;
+  let offMax = -Infinity;
+  for (let i = 0; i < n; i += 1) {
+    const worst = scores.PE[i] > scores.PP[i] ? scores.PE[i] : scores.PP[i];
+    off[i] = worst;
+    const p = pet[i];
+    if (p < petMin) petMin = p;
+    if (p > petMax) petMax = p;
+    if (worst < offMin) offMin = worst;
+    if (worst > offMax) offMax = worst;
   }
-  // Frontier: maximise PET, minimise worst off-target.
-  const sorted = [...picked].sort((a, b) => b.pet - a.pet);
-  let bestWorstOff = Infinity;
-  const frontier = new Set<number>();
-  for (const p of sorted) {
-    if (p.worstOff < bestWorstOff) {
-      bestWorstOff = p.worstOff;
-      frontier.add(p.index);
+
+  /* ---- stage 1: prune with a binned running maximum ---- */
+  const PRUNE_BINS = 4096;
+  const offSpan = offMax - offMin || 1;
+  const binOf = (value: number) => {
+    const b = Math.floor(((value - offMin) / offSpan) * PRUNE_BINS);
+    return b < 0 ? 0 : b >= PRUNE_BINS ? PRUNE_BINS - 1 : b;
+  };
+
+  const binBestPet = new Float64Array(PRUNE_BINS).fill(-Infinity);
+  for (let i = 0; i < n; i += 1) {
+    const b = binOf(off[i]);
+    if (pet[i] > binBestPet[b]) binBestPet[b] = pet[i];
+  }
+  // runningMax[b] = best PET found in any bin strictly before b.
+  const runningMax = new Float64Array(PRUNE_BINS);
+  let best = -Infinity;
+  for (let b = 0; b < PRUNE_BINS; b += 1) {
+    runningMax[b] = best;
+    if (binBestPet[b] > best) best = binBestPet[b];
+  }
+
+  const candidates: number[] = [];
+  for (let i = 0; i < n; i += 1) {
+    if (pet[i] >= runningMax[binOf(off[i])]) candidates.push(i);
+  }
+
+  /* ---- stage 2: exact sweep over the survivors ---- */
+  candidates.sort((a, b) => (off[a] - off[b]) || (pet[b] - pet[a]));
+  const frontier: ParetoPoint[] = [];
+  let bestPet = -Infinity;
+  for (const index of candidates) {
+    if (pet[index] > bestPet) {
+      bestPet = pet[index];
+      frontier.push({
+        index,
+        pet: pet[index],
+        worstOff: off[index],
+        objective: objectiveAt(scores, index, lambda),
+        onFrontier: true,
+      });
     }
   }
-  return picked.map((p) => ({ ...p, onFrontier: frontier.has(p.index) }));
+
+  /* ---- the objective optimum at this lambda, so it is always plotted ---- */
+  const optimum = exactBruteForce(scores, lambda, 1);
+  if (!frontier.some((point) => point.index === optimum.bestIndex)) {
+    frontier.push({
+      index: optimum.bestIndex,
+      pet: pet[optimum.bestIndex],
+      worstOff: off[optimum.bestIndex],
+      objective: objectiveAt(scores, optimum.bestIndex, lambda),
+      // Honest: the lambda optimum need not sit on the PET-vs-worst-off
+      // frontier, because the objective also counts the other off-target.
+      onFrontier: false,
+    });
+  }
+
+  /* ---- density over every design ---- */
+  // Sized for the DOM, not for the data. A 150x110 grid leaves ~11,500
+  // occupied cells, which is ~11,500 SVG rects; this is ~4,700, the same
+  // order as the QUBO heatmap already on the Understand screen, and at a
+  // 700px-wide plot each cell is still only ~7px across.
+  const BINS_X = 96;
+  const BINS_Y = 68;
+  const petSpan = petMax - petMin || 1;
+  const widthX = petSpan / BINS_X;
+  const widthY = offSpan / BINS_Y;
+  const counts = new Uint32Array(BINS_X * BINS_Y);
+  for (let i = 0; i < n; i += 1) {
+    let bx = Math.floor((pet[i] - petMin) / widthX);
+    let by = Math.floor((off[i] - offMin) / widthY);
+    if (bx >= BINS_X) bx = BINS_X - 1;
+    if (by >= BINS_Y) by = BINS_Y - 1;
+    counts[by * BINS_X + bx] += 1;
+  }
+
+  const density: DensityCell[] = [];
+  let maxCount = 0;
+  for (let by = 0; by < BINS_Y; by += 1) {
+    for (let bx = 0; bx < BINS_X; bx += 1) {
+      const count = counts[by * BINS_X + bx];
+      if (count === 0) continue;
+      if (count > maxCount) maxCount = count;
+      density.push({
+        x: petMin + (bx + 0.5) * widthX,
+        y: offMin + (by + 0.5) * widthY,
+        count,
+      });
+    }
+  }
+
+  return {
+    frontier,
+    density,
+    evaluated: n,
+    bins: { x: BINS_X, y: BINS_Y },
+    binSize: { x: widthX, y: widthY },
+    maxCount,
+    optimumIndex: optimum.bestIndex,
+    computeMs: Date.now() - startedAt,
+  };
 }
 
 ctx.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
@@ -894,13 +1012,11 @@ ctx.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
         });
         return;
       }
-      const points = buildPareto(fullSpace, message.lambda, message.sampleSize, message.seed);
+      const tradeoff = buildTradeoff(fullSpace, message.lambda);
       post({
         kind: 'pareto',
         runId: message.runId,
-        lambda: message.lambda,
-        points,
-        sampled: points.length,
+        payload: { lambda: message.lambda, ...tradeoff },
       });
       return;
     }

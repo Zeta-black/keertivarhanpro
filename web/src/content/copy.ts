@@ -142,6 +142,14 @@ export const SCREENS = {
     purpose:
       'See the top designs side by side, and how different search methods performed on the same problem.',
   },
+  quantum: {
+    id: 'quantum',
+    path: '/quantum',
+    nav: 'Quantum',
+    title: 'Run the quantum circuit, then grade it',
+    purpose:
+      'A real variational quantum circuit, simulated exactly in this tab, scored against a brute-force optimum over the same designs.',
+  },
   understand: {
     id: 'understand',
     path: '/understand',
@@ -167,6 +175,7 @@ export const NAV_ORDER: ScreenId[] = [
   'build',
   'optimise',
   'compare',
+  'quantum',
   'understand',
   'results',
 ];
@@ -382,7 +391,7 @@ export const TOUR_STEPS = [
     id: 'honesty',
     target: 'tour-honesty',
     title: 'What this is not',
-    body: 'These are computer predictions. Nothing was tested in a laboratory, and no quantum computer was used.',
+    body: 'These are computer predictions. Nothing was tested in a laboratory. The quantum algorithm is simulated exactly on an ordinary processor; no quantum computer was used.',
   },
 ] as const;
 
@@ -397,7 +406,7 @@ export const FAQ = [
   },
   {
     q: 'Was a quantum computer used?',
-    a: 'No. NO QUANTUM HARDWARE EXECUTION. The problem is written as a QUBO, which is the format a quantum annealer accepts, and that is the entire quantum connection. The searches you can run here are classical and run in your browser.',
+    a: 'No. NO QUANTUM HARDWARE EXECUTION. Two things are true at once: the problem is written as a QUBO, the format a quantum annealer accepts, and a real gate-model quantum algorithm (XY-mixer QAOA) is run on it by exact simulation on the Quantum screen. Simulated means every amplitude is computed on an ordinary processor - no quantum machine is contacted. The exhaustive search that produces the headline answer is classical and runs in your browser.',
   },
   {
     q: 'Why only six kinds of building block instead of twenty amino acids?',

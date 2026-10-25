@@ -1,0 +1,459 @@
+{
+  "schema": "qbind-select/qaoa-golden/1",
+  "generatedBy": "scripts/export_qaoa_fixture.py",
+  "source": "data/processed/real_aggregated_potts_model.npz",
+  "sourceChecksumSha256": "ea704a2f0ccc0af2d621262ea2d82f649c4cfda78145cd844c04277696cb683a",
+  "tolerance": 1e-09,
+  "warning": "Exact classical statevector simulation inside the one-hot feasible subspace. NO QUANTUM HARDWARE. No speedup claimed.",
+  "note": "Angles are fixed, not optimised: cross-language parity of an iterative optimiser is not meaningful, but the physics for given angles must match exactly.",
+  "cases": [
+    {
+      "name": "three-slot",
+      "lambda": 1.0,
+      "freePositions": [
+        0,
+        2,
+        7
+      ],
+      "fixedCodes": [
+        2,
+        3,
+        0,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "slots": 3,
+      "dimension": 216,
+      "nominalQubits": 18,
+      "contextConstant": -109.95835555555556,
+      "effectiveLinear": [
+        -71.13083333333333,
+        -91.19069999999999,
+        -122.16445555555555,
+        -84.46921333333334,
+        -62.957750000000004,
+        -90.84351111111111,
+        -31.627833333333328,
+        -39.53364999999999,
+        11.208750000000002,
+        -11.924273333333332,
+        -6.908683333333332,
+        26.847388888888887,
+        -59.56993333333333,
+        -57.233066666666666,
+        -70.01302222222222,
+        -28.93788,
+        -35.8741,
+        -53.85933333333334
+      ],
+      "objective": {
+        "best": -383.4873611111111,
+        "worst": -174.91859666666667,
+        "mean": -272.0195998765432,
+        "bestIndex": 74,
+        "bestSlotClasses": [
+          2,
+          0,
+          2
+        ],
+        "checksum": 16280465.547617998,
+        "sampleIndices": [
+          0,
+          1,
+          7,
+          37,
+          215
+        ],
+        "sampleEnergies": [
+          -291.53695555555555,
+          -288.8975888888889,
+          -328.48965555555554,
+          -289.9199555555556,
+          -227.0774777777778
+        ]
+      },
+      "circuitCost": {
+        "qubits": 18,
+        "qaoa_layers": 2,
+        "trotter_steps_per_layer": 1,
+        "w_state_prep_cnot": 30,
+        "phase_separator_rz": 36,
+        "phase_separator_zz": 216,
+        "phase_separator_cnot": 432,
+        "xy_pair_terms_per_layer": 45,
+        "mixer_cnot": 180,
+        "mixer_single_qubit": 270,
+        "cnot_total_lower_bound": 642,
+        "variational_parameters": 4,
+        "caveats": [
+          "LOWER BOUND: assumes all-to-all connectivity; limited-connectivity hardware needs SWAP insertion and would execute more.",
+          "The simulation applies the XY mixer EXACTLY; hardware must Trotterise, and that Trotter error is not modelled anywhere in this repository.",
+          "NOT EXECUTED on any quantum device."
+        ]
+      },
+      "runs": [
+        {
+          "gammas": [],
+          "betas": [],
+          "norm": 0.9999999999999994,
+          "expectation": -272.01959987654317,
+          "topIndices": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "topProbabilities": [
+            0.004629629629629629,
+            0.004629629629629629,
+            0.004629629629629629,
+            0.004629629629629629,
+            0.004629629629629629,
+            0.004629629629629629,
+            0.004629629629629629,
+            0.004629629629629629
+          ],
+          "optimumProbability": 0.004629629629629629,
+          "probabilitySquaredSum": 0.00462962962962963
+        },
+        {
+          "gammas": [
+            0.37
+          ],
+          "betas": [
+            0.81
+          ],
+          "norm": 1.0000000000000002,
+          "expectation": -273.14026652379135,
+          "topIndices": [
+            2,
+            38,
+            0,
+            1,
+            5,
+            80,
+            92,
+            44
+          ],
+          "topProbabilities": [
+            0.0053501126845684885,
+            0.005189150059529553,
+            0.005170819517661093,
+            0.005159936976824768,
+            0.005141191841377814,
+            0.005102299708178171,
+            0.005101257509067532,
+            0.005074079403037305
+          ],
+          "optimumProbability": 0.0049846387699868655,
+          "probabilitySquaredSum": 0.004638505398766102
+        },
+        {
+          "gammas": [
+            0.37,
+            1.13
+          ],
+          "betas": [
+            0.81,
+            0.29
+          ],
+          "norm": 0.999999999999999,
+          "expectation": -272.9902925242333,
+          "topIndices": [
+            2,
+            0,
+            1,
+            5,
+            4,
+            3,
+            38,
+            36
+          ],
+          "topProbabilities": [
+            0.007199031731205303,
+            0.006736669259935843,
+            0.006725127066165215,
+            0.0066868644371640956,
+            0.006557900637841863,
+            0.006533236997281171,
+            0.0064006322564888855,
+            0.006037779697978434
+          ],
+          "optimumProbability": 0.004594781907438992,
+          "probabilitySquaredSum": 0.004711519935789576
+        },
+        {
+          "gammas": [
+            2.4,
+            -0.7,
+            1.9
+          ],
+          "betas": [
+            0.15,
+            1.27,
+            -0.63
+          ],
+          "norm": 0.9999999999999991,
+          "expectation": -302.61022384211225,
+          "topIndices": [
+            74,
+            80,
+            72,
+            92,
+            73,
+            98,
+            8,
+            2
+          ],
+          "topProbabilities": [
+            0.04072950800961361,
+            0.03031298192605841,
+            0.018994990415219307,
+            0.01851013445574249,
+            0.017769585571469043,
+            0.017258629918977614,
+            0.017001921707047275,
+            0.016771665796937004
+          ],
+          "optimumProbability": 0.04072950800961361,
+          "probabilitySquaredSum": 0.009620223867122297
+        }
+      ]
+    },
+    {
+      "name": "four-slot",
+      "lambda": 2.0,
+      "freePositions": [
+        0,
+        2,
+        5,
+        7
+      ],
+      "fixedCodes": [
+        2,
+        3,
+        0,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "slots": 4,
+      "dimension": 1296,
+      "nominalQubits": 24,
+      "contextConstant": -247.52896666666666,
+      "effectiveLinear": [
+        -139.33143333333334,
+        -185.89894999999999,
+        -227.9289611111111,
+        -168.16431333333333,
+        -125.26130000000002,
+        -178.50248888888885,
+        -8.652466666666665,
+        -2.430966666666663,
+        5.420405555555554,
+        -24.815106666666665,
+        -13.194599999999998,
+        34.202877777777765,
+        46.08176666666667,
+        39.840399999999995,
+        12.645494444444445,
+        15.734093333333334,
+        6.723366666666665,
+        45.77702222222223,
+        -108.53106666666667,
+        -105.2094,
+        -114.24606666666666,
+        -50.48088,
+        -63.65601666666667,
+        -96.60593333333334
+      ],
+      "objective": {
+        "best": -806.6946333333333,
+        "worst": -337.20895777777775,
+        "mean": -545.7268262962963,
+        "bestIndex": 446,
+        "bestSlotClasses": [
+          2,
+          0,
+          2,
+          2
+        ],
+        "checksum": 393584016.3590681,
+        "sampleIndices": [
+          0,
+          1,
+          7,
+          37,
+          1295
+        ],
+        "sampleEnergies": [
+          -577.3291666666668,
+          -573.7545000000001,
+          -583.9278666666668,
+          -599.2370000000001,
+          -442.60715555555544
+        ]
+      },
+      "circuitCost": {
+        "qubits": 24,
+        "qaoa_layers": 2,
+        "trotter_steps_per_layer": 1,
+        "w_state_prep_cnot": 40,
+        "phase_separator_rz": 48,
+        "phase_separator_zz": 432,
+        "phase_separator_cnot": 864,
+        "xy_pair_terms_per_layer": 60,
+        "mixer_cnot": 240,
+        "mixer_single_qubit": 360,
+        "cnot_total_lower_bound": 1144,
+        "variational_parameters": 4,
+        "caveats": [
+          "LOWER BOUND: assumes all-to-all connectivity; limited-connectivity hardware needs SWAP insertion and would execute more.",
+          "The simulation applies the XY mixer EXACTLY; hardware must Trotterise, and that Trotter error is not modelled anywhere in this repository.",
+          "NOT EXECUTED on any quantum device."
+        ]
+      },
+      "runs": [
+        {
+          "gammas": [],
+          "betas": [],
+          "norm": 1.0000000000000018,
+          "expectation": -545.7268262962964,
+          "topIndices": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "topProbabilities": [
+            0.0007716049382716049,
+            0.0007716049382716049,
+            0.0007716049382716049,
+            0.0007716049382716049,
+            0.0007716049382716049,
+            0.0007716049382716049,
+            0.0007716049382716049,
+            0.0007716049382716049
+          ],
+          "optimumProbability": 0.0007716049382716049,
+          "probabilitySquaredSum": 0.0007716049382716044
+        },
+        {
+          "gammas": [
+            0.37
+          ],
+          "betas": [
+            0.81
+          ],
+          "norm": 1.0,
+          "expectation": -547.813957238535,
+          "topIndices": [
+            26,
+            20,
+            242,
+            32,
+            29,
+            14,
+            28,
+            25
+          ],
+          "topProbabilities": [
+            0.0009154518453885774,
+            0.0008895331108848704,
+            0.000888193255433137,
+            0.0008842290515171664,
+            0.0008832160761968138,
+            0.0008827743167251285,
+            0.000874393407691388,
+            0.0008720111463259532
+          ],
+          "optimumProbability": 0.000839627178364377,
+          "probabilitySquaredSum": 0.000772900121785424
+        },
+        {
+          "gammas": [
+            0.37,
+            1.13
+          ],
+          "betas": [
+            0.81,
+            0.29
+          ],
+          "norm": 0.9999999999999983,
+          "expectation": -547.3768472148765,
+          "topIndices": [
+            26,
+            29,
+            28,
+            27,
+            32,
+            25,
+            20,
+            24
+          ],
+          "topProbabilities": [
+            0.0013408156138104883,
+            0.001256176796924041,
+            0.0012505639001218717,
+            0.0012320976367904259,
+            0.0012291436658194092,
+            0.0011886301207442525,
+            0.0011829235475431378,
+            0.0011819722717924957
+          ],
+          "optimumProbability": 0.0007896683537893125,
+          "probabilitySquaredSum": 0.0007839405087104925
+        },
+        {
+          "gammas": [
+            2.4,
+            -0.7,
+            1.9
+          ],
+          "betas": [
+            0.15,
+            1.27,
+            -0.63
+          ],
+          "norm": 0.9999999999999987,
+          "expectation": -608.2384199653184,
+          "topIndices": [
+            446,
+            452,
+            440,
+            458,
+            482,
+            434,
+            494,
+            488
+          ],
+          "topProbabilities": [
+            0.008537371286444311,
+            0.007218152472870252,
+            0.00716237276356021,
+            0.0068636965559681195,
+            0.005514633854056667,
+            0.0051519896391995345,
+            0.004580054503971565,
+            0.004543656142468974
+          ],
+          "optimumProbability": 0.008537371286444311,
+          "probabilitySquaredSum": 0.0015610830207687825
+        }
+      ]
+    }
+  ]
+}

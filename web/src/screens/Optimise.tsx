@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from '../app/router';
 import { Beginner, PlainNote, Researcher } from '../app/mode';
 import { useDraftScoring } from '../app/hooks';
+import { LiveReadout } from '../components/LiveReadout';
 import {
   Button,
   Card,
@@ -199,6 +200,55 @@ export function OptimiseScreen(): JSX.Element {
             </PlainNote>
           </div>
 
+          {scoreMatches && score ? (
+            <div style={{ marginTop: 'var(--s-4)' }}>
+              {/* Not sticky: it is already inside the dial's own card, so it
+                  moves with the control rather than detaching from it. The
+                  full tiles with units and provenance remain below. */}
+              <LiveReadout
+                sticky={false}
+                caption="What this priority does, for the design currently loaded"
+                items={[
+                  {
+                    label: 'PET score',
+                    value: formatScore(score.scores.PET),
+                    tone: 'pet' as const,
+                  },
+                  {
+                    label: 'Off-target total',
+                    value: formatScore(score.objectiveParts.offTargetSum),
+                    tone: 'warn' as const,
+                  },
+                  {
+                    label: 'Off-target penalty',
+                    value: formatScore(score.objectiveParts.penaltyTerm),
+                  },
+                  {
+                    label: 'Objective',
+                    value: formatScore(score.objective),
+                  },
+                ]}
+                note={
+                  <span className="mono" style={{ fontSize: 'var(--fs-xs)' }}>
+                    <span style={{ color: 'var(--c-pet)' }}>
+                      {score.objectiveParts.targetTerm.toFixed(3)}
+                    </span>
+                    {' + '}
+                    <span style={{ color: 'var(--optimise)' }}>
+                      {score.objectiveParts.penaltyTerm.toFixed(3)}
+                    </span>
+                    {' = '}
+                    <strong>{score.objective.toFixed(3)}</strong>
+                    {'   '}
+                    <span style={{ color: 'var(--text-faint)' }}>
+                      (reward PET + avoid the others = objective, lower is better)
+                    </span>
+                  </span>
+                }
+              />
+            </div>
+          ) : null}
+
           <Notice tone={sliderValue === 0 ? 'honest' : 'plain'}>
             <strong>{lambdaText.headline}.</strong>
             <p style={{ marginTop: 'var(--s-1)' }}>{lambdaText.detail}</p>
@@ -211,7 +261,9 @@ export function OptimiseScreen(): JSX.Element {
           <p className="screen-purpose" style={{ marginBottom: 'var(--s-4)' }}>
             {run
               ? 'The exact best design at this priority, re-solved over the whole space.'
-              : 'Shown for your current design. Run the search below to find the best design at this priority.'}
+              : 'Shown for your current design. Run the search below to find the best design at this priority.'}{' '}
+            The same four numbers appear beside the dial above; here they carry their units,
+            their direction and where they came from.
           </p>
 
           {scoreMatches && score ? (

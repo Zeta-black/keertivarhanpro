@@ -11,7 +11,7 @@
 
 import type {
   CandidateRecord,
-  ParetoPoint,
+  TradeoffPayload,
   QuboPayload,
   RunConfig,
   RunRecord,
@@ -138,7 +138,7 @@ export interface AppState {
   /** ---- derived views, cached by configuration ---- */
   readonly sweep: SweepPoint[] | null;
   readonly sweepLambdaKey: string | null;
-  readonly pareto: { lambda: number; points: ParetoPoint[]; sampled: number } | null;
+  readonly pareto: TradeoffPayload | null;
   readonly qubo: QuboPayload | null;
   readonly verify: VerifyReport | null;
 

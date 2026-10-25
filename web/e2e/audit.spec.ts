@@ -9,7 +9,15 @@
  */
 import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
 
-const ROUTES = ['/', '/build', '/optimise', '/compare', '/understand', '/results'] as const;
+const ROUTES = [
+  '/',
+  '/build',
+  '/optimise',
+  '/compare',
+  '/quantum',
+  '/understand',
+  '/results',
+] as const;
 
 /** Console noise that is expected and not a defect. */
 const BENIGN = [
@@ -84,7 +92,7 @@ test.describe('startup and route coverage', () => {
     });
   }
 
-  // Six widths across six routes is 36 full navigations; the default
+  // Six widths across seven routes is 42 full navigations; the default
   // per-test timeout is not meant for a sweep this size.
   test('the page body never scrolls sideways at any viewport', async ({ page }) => {
     test.setTimeout(300_000);
@@ -938,18 +946,19 @@ test.describe('accessibility in a real browser', () => {
   });
 
   test('nothing on the landing page animates by itself', async ({ browser }) => {
-    // The hero used to be an animated canvas. It is now a static chemical
-    // structure, so the correct assertion is that nothing moves at all -
-    // under reduced motion or otherwise.
+    // The hero was an animated canvas, then a chemical structure panel. It is
+    // now plain type: the molecule viewer lives on Build & Explore, where its
+    // residues can be changed. So the assertion is simply that the landing
+    // page holds still - under reduced motion or otherwise.
     const context = await browser.newContext({ reducedMotion: 'reduce' });
     const p = await context.newPage();
     await p.goto('/');
-    await p.locator('.struct2d-figure svg').first().waitFor({ timeout: 30_000 });
+    await p.getByRole('heading', { level: 1 }).waitFor({ timeout: 30_000 });
 
-    const shot = async () => (await p.locator('.hero-structure').screenshot()).toString('base64');
+    const shot = async () => (await p.locator('.hero').screenshot()).toString('base64');
     const first = await shot();
     await p.waitForTimeout(1200);
-    expect(await shot(), 'the structure panel must hold still').toBe(first);
+    expect(await shot(), 'the hero must hold still').toBe(first);
 
     // And no element is running an infinite animation on the landing page.
     const animated = await p.evaluate(() => {
@@ -1018,7 +1027,7 @@ test.describe('scientific honesty, as rendered', () => {
   });
 
   test('the validity assessment is on Results and on no other screen', async ({ page }) => {
-    for (const route of ['/', '/build', '/optimise', '/compare', '/understand']) {
+    for (const route of ['/', '/build', '/optimise', '/compare', '/quantum', '/understand']) {
       await page.goto(route);
       await skipTour(page);
       await expect(

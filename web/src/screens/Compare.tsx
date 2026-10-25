@@ -1,7 +1,7 @@
 /**
  * SCREEN D - Compare.
  *
- * Candidate podium, sortable table, lambda sweep, Pareto trade-off and the
+ * Candidate podium, sortable table, lambda sweep, exact Pareto trade-off and the
  * solver comparison. This is where the old Peptides / Sweep / Solvers tabs live.
  *
  * The solver comparison only ever reports measured numbers. D-Wave is listed
@@ -12,6 +12,7 @@
 import { useMemo, useState } from 'react';
 
 import { useRouter } from '../app/router';
+import { LiveReadout } from '../components/LiveReadout';
 import {
   Button,
   Card,
@@ -115,7 +116,8 @@ export function CompareScreen(): JSX.Element {
               After a run this screen carries: the top-N candidate table with objective, all
               three plastic scores, both margins, composition flags and the lexicographic
               sequence index; the exact lambda sweep (each point re-solved over the full space,
-              never interpolated); a sampled Pareto front of PET against worst off-target; and
+              never interpolated); the exact Pareto front of PET against worst off-target over
+              every design, on a density background; and
               the solver comparison with validity rate, gap to the proven optimum and wall-clock
               timings measured on this device.
             </p>
@@ -148,6 +150,41 @@ export function CompareScreen(): JSX.Element {
               </span>
               <Button onClick={() => navigate('results')}>Open the written report</Button>
             </>
+          }
+        />
+
+        {/* Follows the selection wherever it is made - podium, table or
+            chart - so the three controls spread down this page all have their
+            effect visible. "Selected design in detail" lower down keeps the
+            full position table, metric definitions and structure. */}
+        <LiveReadout
+          caption={`Selected: rank ${selected.rank} of ${run.candidates.length} · ${selected.representative}`}
+          items={[
+            { label: 'PET', value: formatScore(selected.scores.PET), tone: 'pet' as const },
+            { label: 'PE', value: formatScore(selected.scores.PE), tone: 'pe' as const },
+            { label: 'PP', value: formatScore(selected.scores.PP), tone: 'pp' as const },
+            {
+              label: 'Margin vs worst',
+              value: formatScore(selected.metrics.marginWorst),
+              tone: selected.metrics.marginWorst > 0 ? ('good' as const) : ('warn' as const),
+            },
+            { label: 'Objective', value: formatScore(selected.objective) },
+          ]}
+          note={
+            <span className="live-readout-actions">
+              <span className="mono">{selected.classSequence}</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  document
+                    .getElementById('selected-detail')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+              >
+                Jump to full detail
+              </Button>
+            </span>
           }
         />
 
@@ -594,27 +631,19 @@ export function CompareScreen(): JSX.Element {
           </Card>
         </section>
 
-        {/* ---------------- PARETO ---------------- */}
+        {/* ---------------- TRADE-OFF ---------------- */}
         <section className="section">
           <div className="spread" style={{ flexWrap: 'wrap', gap: 'var(--s-3)' }}>
             <div>
               <h2 className="section-title">The trade-off, drawn out</h2>
               <p className="screen-purpose">
-                Every design is a dot. We want to be far right (high PET) and far down (low
-                worst off-target). The dashed line is the best achievable frontier.
+                We want to be far right (high PET) and far down (low worst off-target). The
+                shading counts how many designs land in each part of the space; the green
+                staircase is the best that can be achieved.
               </p>
             </div>
-            <Button
-              onClick={() =>
-                send({
-                  kind: 'pareto',
-                  lambda: state.lambda,
-                  sampleSize: 1200,
-                  seed: run.config.seed,
-                })
-              }
-            >
-              {state.pareto ? 'Resample' : 'Draw the trade-off chart'}
+            <Button onClick={() => send({ kind: 'pareto', lambda: state.lambda })}>
+              {state.pareto ? 'Recompute' : 'Draw the trade-off chart'}
             </Button>
           </div>
 
@@ -622,23 +651,28 @@ export function CompareScreen(): JSX.Element {
             <div style={{ marginTop: 'var(--s-4)' }}>
               <ScatterChart
                 title="PET score against worst off-target score"
-                subtitle={`${formatInt(state.pareto.sampled)} designs sampled from ${formatInt(run.searchSpace.validSequences)}, plus the exact optimum`}
+                subtitle={`All ${formatInt(state.pareto.evaluated)} designs, binned; the exact frontier is ${formatInt(state.pareto.frontier.length)} designs`}
                 xLabel="PET score (higher is better)"
                 yLabel="Worst off-target score (lower is better)"
-                points={state.pareto.points.map((p) => ({
-                  index: p.index,
-                  x: p.pet,
-                  y: p.worstOff,
-                  onFrontier: p.onFrontier,
+                points={state.pareto.frontier.map((point) => ({
+                  index: point.index,
+                  x: point.pet,
+                  y: point.worstOff,
+                  onFrontier: point.onFrontier,
                 }))}
+                density={state.pareto.density}
+                densityMax={state.pareto.maxCount}
+                densityBinSize={state.pareto.binSize}
+                densityLabel="designs per cell (log shading)"
                 selectedIndex={selected.index}
                 onSelect={(index) => dispatch({ type: 'SELECT_CANDIDATE', index })}
                 footer={
                   <>
                     <ProvenanceBadge
-                      kind="sampled"
-                      detail={`A random sample of ${state.pareto.sampled} designs, seed ${run.config.seed}, plus the proven optimum. Drawing all 1.68 million dots would be unreadable and slow; the frontier shape is stable across samples.`}
+                      kind="computed"
+                      detail={`Every one of the ${formatInt(state.pareto.evaluated)} valid designs was used. The frontier is exact - not a frontier of a sample - and the shading is a real count per bin on a ${state.pareto.bins.x} by ${state.pareto.bins.y} grid. Computed in ${formatInt(state.pareto.computeMs)} ms.`}
                     />{' '}
+                    Shading is a log scale because the counts span several orders of magnitude.
                     Scores are a selectivity proxy, not measured affinities.
                   </>
                 }
@@ -647,7 +681,7 @@ export function CompareScreen(): JSX.Element {
           ) : (
             <EmptyState
               title="Trade-off chart not drawn yet"
-              body="This chart samples designs rather than plotting all 1.68 million, which keeps it readable and fast. Press the button to compute it."
+              body="Plotting 1.68 million individual dots would be unreadable, so this bins every design into a density grid and computes the exact frontier over all of them. Press the button to compute it."
             />
           )}
         </section>
@@ -803,7 +837,9 @@ export function CompareScreen(): JSX.Element {
         {/* ---------------- SELECTED DETAIL ---------------- */}
         <section className="section">
           <header className="section-head">
-            <h2 className="section-title">Selected design in detail</h2>
+            <h2 className="section-title" id="selected-detail">
+              Selected design in detail
+            </h2>
             <p className="section-lede">
               Composition, metrics and the molecule this class sequence stands for when each
               family is read as its documented representative.

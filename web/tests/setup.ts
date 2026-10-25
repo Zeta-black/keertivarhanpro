@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 import '@testing-library/jest-dom/vitest';
@@ -98,4 +98,40 @@ if (hasDom) {
    */
   HTMLCanvasElement.prototype.getContext = (() =>
     null) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+}
+
+/* ------------------------------------------------------------------ *
+ * Default fetch stub.
+ *
+ * The Quantum screen loads the Potts coefficients itself (see
+ * `usePottsModel`), so any suite that renders the app triggers a real
+ * request. Left unstubbed, jsdom tries to reach an unroutable URL and
+ * blocks until it gives up - which took the persona review, 168 full app
+ * renders, from minutes to tens of minutes.
+ *
+ * Serving the real file from disk is both faster and better coverage: the
+ * screen reaches its loaded state in every suite rather than sitting
+ * permanently in its "model could not be loaded" branch. Anything else
+ * 404s immediately, so a test that depends on some other request has to
+ * say so by stubbing it.
+ *
+ * Individual tests still override this with `vi.stubGlobal('fetch', ...)`;
+ * `vi.unstubAllGlobals()` in their teardown restores this default.
+ * ------------------------------------------------------------------ */
+if (hasDom) {
+  const modelPath = resolve(__dirname, '..', 'public', 'model', 'potts_6class_8mer.json');
+  let modelJson: string | null = null;
+
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(typeof input === 'object' && 'url' in input ? input.url : input);
+    if (url.includes('potts_6class_8mer.json')) {
+      if (modelJson === null) modelJson = readFileSync(modelPath, 'utf8');
+      return new Response(modelJson, {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    // Deliberately not a network call. A test that needs one must stub it.
+    return new Response('not found in tests', { status: 404, statusText: 'Not Found' });
+  }) as typeof fetch;
 }

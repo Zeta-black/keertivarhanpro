@@ -739,7 +739,7 @@ describe('Compare screen', () => {
     expect(screen.getByRole('button', { name: /PET \*/i })).toBeInTheDocument();
   });
 
-  it('draws the trade-off chart only when asked, and labels it as sampled', async () => {
+  it('draws the trade-off chart only when asked, over the whole space', async () => {
     await openCompareWithRun();
     expect(screen.getByText(/trade-off chart not drawn yet/i)).toBeInTheDocument();
     await act(async () => {
@@ -748,7 +748,13 @@ describe('Compare screen', () => {
     expect(
       (await screen.findAllByText(/PET score against worst off-target/i)).length,
     ).toBeGreaterThan(0);
-    expect(screen.getAllByText(/^Sampled$/i).length).toBeGreaterThan(0);
+    // The chart used to plot 1,200 random designs and was badged "Sampled".
+    // It now bins every design and computes the exact frontier, so the
+    // provenance must say Computed and the sampled badge must be gone.
+    expect(screen.queryAllByText(/^Sampled$/i)).toHaveLength(0);
+    expect(screen.getAllByText(/^Computed$/i).length).toBeGreaterThan(0);
+    // The subtitle must name the full space, not a sample size.
+    expect(screen.getAllByText(/all 1,679,616 designs, binned/i).length).toBeGreaterThan(0);
   });
 
   it('opens a candidate in the builder', async () => {

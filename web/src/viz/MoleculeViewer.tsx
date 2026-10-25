@@ -8,8 +8,9 @@
  * once, in the caption, not as a badge on every control.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
+import { InfoTip } from '../components/primitives';
 import { buildPeptideModel, type PeptideModel } from '../chem';
 import { peptideExportFiles } from '../chem';
 import type { SecondaryStructure } from '../chem/conformer';
@@ -40,6 +41,14 @@ export interface MoleculeViewerProps {
   readonly onModelReady?: (model: PeptideModel) => void;
 }
 
+/** What each format is, for the accessible name on its button. */
+const EXPORT_HINTS: Readonly<Record<string, string>> = {
+  FASTA: 'the residue sequence as plain text',
+  SMI: 'SMILES, the structure on one line',
+  SDF: 'connection table with 3D coordinates and provenance fields',
+  PDB: 'atoms and coordinates for a structure viewer',
+};
+
 /** Hands the caller a Blob download without leaving the page. */
 function download(name: string, mime: string, text: string): void {
   const blob = new Blob([text], { type: mime });
@@ -68,6 +77,9 @@ export function MoleculeViewer({
   const [labels, setLabels] = useState(false);
   const [engine, setEngine] = useState<EngineStatus>({ kind: 'idle' });
   const announced = useRef<string>('');
+  // Two viewers can be on screen at once (Build, and the Compare candidate
+  // panel), so the download group needs an id of its own.
+  const viewerId = useId();
 
   const key = residues.join('');
 
@@ -213,20 +225,48 @@ export function MoleculeViewer({
               vertices, as in any structure diagram.
             </p>
           )}
-          <div className="viewer-downloads">
-            {files.map((file) => (
+        </div>
+      ) : null}
+
+      {/* Downloads get their own labelled strip under the structure. They
+          were four unlabelled buttons in the controls row above, which is
+          where view toggles live, so nobody read them as files. */}
+      <div className="viewer-export">
+        <span className="viewer-export-label" id={`${viewerId}-download`}>
+          Download file
+          <InfoTip
+            title="What these files are"
+            body="The same molecule in four standard formats. FASTA is the residue sequence as text. SMILES is the structure on one line. SDF carries the connection table, the 3D coordinates and the provenance fields. PDB carries the atoms and coordinates for a structure viewer. All four are generated from the structure shown, in your browser."
+          />
+        </span>
+        <div className="viewer-export-buttons" role="group" aria-labelledby={`${viewerId}-download`}>
+          {files.map((file) => {
+            const extension = file.name.split('.').pop()?.toUpperCase() ?? 'FILE';
+            return (
               <button
                 key={file.name}
                 type="button"
-                className="btn btn-sm"
+                className="btn btn-sm viewer-export-btn"
                 onClick={() => download(file.name, file.mime, file.text)}
+                title={`Download ${file.name}`}
               >
-                {file.name.split('.').pop()?.toUpperCase()}
+                <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+                  <path
+                    d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                  />
+                </svg>
+                {extension}
+                <span className="sr-only"> file, {EXPORT_HINTS[extension] ?? 'download'}</span>
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      ) : null}
+      </div>
 
       <footer className="viewer-foot">
         {mode === '2d' ? (

@@ -33,6 +33,7 @@ import {
   MIGRATION_MAP,
   SCREENS,
   SOURCES,
+  type ScreenId,
 } from '../content/copy';
 import {
   ALPHABET_SIZE,
@@ -828,7 +829,10 @@ function VerifySection(): JSX.Element {
 function AboutSection({
   onNavigate,
 }: {
-  readonly onNavigate: (screen: 'discover' | 'build' | 'optimise' | 'compare' | 'understand' | 'results') => void;
+  // Use ScreenId rather than a hand-written union: this prop broke when a
+  // screen was added, and a maintained-by-hand copy of the route list will
+  // always drift.
+  readonly onNavigate: (screen: ScreenId) => void;
 }): JSX.Element {
   const { state } = useStore();
   return (

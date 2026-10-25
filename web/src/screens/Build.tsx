@@ -19,6 +19,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from '../app/router';
 import { useDraftScoring } from '../app/hooks';
 import { Beginner, Equation, PlainNote, Researcher, useMode } from '../app/mode';
+import { LiveReadout } from '../components/LiveReadout';
 import {
   Button,
   Card,
@@ -173,7 +174,81 @@ export function BuildScreen(): JSX.Element {
         <div className="workbench">
           {/* ---- Editor column ---- */}
           <div className="workbench-editor">
-            <Card raised>
+            {/* Sticky, and first in the column, so the effect of an edit is
+                never off-screen while editing. The full tiles with units and
+                provenance are still in "What the model says" below. */}
+            <LiveReadout
+              caption="Live scores for this design"
+              pending={!scoreMatchesDraft}
+              items={
+                score
+                  ? [
+                      {
+                        label: 'PET',
+                        value: formatScore(score.scores.PET),
+                        tone: 'pet' as const,
+                        delta: deltas ? { value: deltas.PET, betterWhen: 'higher' as const } : null,
+                      },
+                      {
+                        label: 'PE',
+                        value: formatScore(score.scores.PE),
+                        tone: 'pe' as const,
+                        delta: deltas ? { value: deltas.PE, betterWhen: 'lower' as const } : null,
+                      },
+                      {
+                        label: 'PP',
+                        value: formatScore(score.scores.PP),
+                        tone: 'pp' as const,
+                        delta: deltas ? { value: deltas.PP, betterWhen: 'lower' as const } : null,
+                      },
+                      {
+                        label: 'Margin vs worst',
+                        value: formatScore(score.metrics.marginWorst),
+                        tone: score.metrics.marginWorst > 0 ? ('good' as const) : ('warn' as const),
+                        delta: deltas
+                          ? { value: deltas.marginWorst, betterWhen: 'higher' as const }
+                          : null,
+                      },
+                    ]
+                  : [
+                      { label: 'PET', value: '--' },
+                      { label: 'PE', value: '--' },
+                      { label: 'PP', value: '--' },
+                      { label: 'Margin vs worst', value: '--' },
+                    ]
+              }
+              note={
+                challengeStart !== null && score && scoreMatchesDraft ? (
+                  <span className="challenge-live">
+                    <strong
+                      style={{
+                        color:
+                          score.metrics.marginWorst > challengeStart
+                            ? 'var(--success)'
+                            : score.metrics.marginWorst < challengeStart
+                              ? 'var(--attention)'
+                              : 'var(--text-muted)',
+                      }}
+                    >
+                      {score.metrics.marginWorst > challengeStart
+                        ? 'Challenge: improved'
+                        : score.metrics.marginWorst < challengeStart
+                          ? 'Challenge: down so far'
+                          : 'Challenge: no change yet'}
+                    </strong>{' '}
+                    {score.metrics.marginWorst === challengeStart
+                      ? `Starting margin ${challengeStart.toFixed(2)}.`
+                      : `${Math.abs(score.metrics.marginWorst - challengeStart).toFixed(2)} ${
+                          score.metrics.marginWorst > challengeStart ? 'above' : 'below'
+                        } your starting margin of ${challengeStart.toFixed(2)}.`}
+                  </span>
+                ) : state.status === 'error' ? (
+                  <>Scoring is unavailable, so these values are switched off. Editing still works.</>
+                ) : null
+              }
+            />
+
+            <Card raised style={{ marginTop: 'var(--s-4)' }}>
               <div className="panel-head">
                 <h2>Class sequence</h2>
                 <p>
@@ -350,27 +425,34 @@ export function BuildScreen(): JSX.Element {
                   </Disclosure>
                 </Researcher>
 
-                {focus !== null ? (
-                  <div className="residue-detail">
-                    <h4>
-                      Position {focus + 1} &middot;{' '}
-                      {residueFor(state.draftResidues[focus]).name} (
-                      {residueFor(state.draftResidues[focus]).code3})
-                    </h4>
-                    <p>{residueFor(state.draftResidues[focus]).note}</p>
-                    <p className="mono">
-                      Kyte-Doolittle hydropathy{' '}
-                      {residueFor(state.draftResidues[focus]).hydropathy.toFixed(1)} &middot;{' '}
-                      {residueFor(state.draftResidues[focus]).polarity} &middot; family{' '}
-                      {CLASS_INFO[state.draftCodes[focus]].name}
+                {/* The slot is always present and always the same height, so
+                    hovering a position swaps its contents without moving
+                    anything below it. This used to mount and unmount, which
+                    resized the card and pushed the whole right column down on
+                    every hover. */}
+                <div className="residue-detail-slot">
+                  {focus !== null ? (
+                    <div className="residue-detail">
+                      <h4>
+                        Position {focus + 1} &middot;{' '}
+                        {residueFor(state.draftResidues[focus]).name} (
+                        {residueFor(state.draftResidues[focus]).code3})
+                      </h4>
+                      <p>{residueFor(state.draftResidues[focus]).note}</p>
+                      <p className="mono">
+                        Kyte-Doolittle hydropathy{' '}
+                        {residueFor(state.draftResidues[focus]).hydropathy.toFixed(1)} &middot;{' '}
+                        {residueFor(state.draftResidues[focus]).polarity} &middot; family{' '}
+                        {CLASS_INFO[state.draftCodes[focus]].name}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="residue-detail-hint">
+                      Hover or focus a position above to highlight that residue in both structure
+                      views and read its chemistry.
                     </p>
-                  </div>
-                ) : (
-                  <p className="faint" style={{ fontSize: 'var(--fs-xs)' }}>
-                    Hover or focus a position above to highlight that residue in both structure
-                    views and read its chemistry.
-                  </p>
-                )}
+                  )}
+                </div>
               </Card>
             ) : null}
           </div>
@@ -704,24 +786,11 @@ PET(c) = intercept + sum_i  h_PET[i, c_i]  +  sum_{i<j}  J_PET[i, j, c_i, c_j]
                 <p className="muted" style={{ fontSize: 'var(--fs-sm)' }}>
                   {CHALLENGE.brief}
                 </p>
-                {challengeStart !== null && score && scoreMatchesDraft ? (
-                  <Notice tone={score.metrics.marginWorst > challengeStart ? 'good' : 'plain'}>
-                    {score.metrics.marginWorst > challengeStart ? (
-                      <>
-                        <strong>Improved.</strong> Your margin against the worst off-target is up{' '}
-                        {(score.metrics.marginWorst - challengeStart).toFixed(2)} from where you
-                        started.
-                      </>
-                    ) : score.metrics.marginWorst < challengeStart ? (
-                      <>
-                        <strong>Down so far.</strong> The margin is{' '}
-                        {(challengeStart - score.metrics.marginWorst).toFixed(2)} lower than your
-                        starting point. Try swapping a greasy family for a flat-ring one.
-                      </>
-                    ) : (
-                      <>No change yet from your starting margin of {challengeStart.toFixed(2)}.</>
-                    )}
-                  </Notice>
+                {challengeStart !== null ? (
+                  <p className="muted" style={{ fontSize: 'var(--fs-xs)', marginTop: 'var(--s-2)' }}>
+                    Running from a starting margin of {challengeStart.toFixed(2)}. Your progress
+                    is in the live scores beside the builder, so you can see it while you edit.
+                  </p>
                 ) : null}
                 <Disclosure summary="Need a hint?">
                   <p>{CHALLENGE.hint}</p>

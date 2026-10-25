@@ -194,7 +194,7 @@ export type WorkerRequest =
   | { kind: 'score'; runId: string; codes: number[]; lambda: number }
   | { kind: 'sweep'; runId: string; lambdas: number[]; topN: number }
   | { kind: 'solveAt'; runId: string; lambda: number; topN: number }
-  | { kind: 'pareto'; runId: string; lambda: number; sampleSize: number; seed: number }
+  | { kind: 'pareto'; runId: string; lambda: number }
   | { kind: 'quboAt'; runId: string; lambda: number; penaltyMultiplier: number }
   | { kind: 'verify'; runId: string; seed: number; sampleSize: number }
   | { kind: 'cancel'; runId: string };
@@ -327,6 +327,42 @@ export interface ParetoPoint {
   readonly onFrontier: boolean;
 }
 
+/**
+ * One cell of the 2D histogram over all valid designs. `count` is a real
+ * count, never a normalised or smoothed value, so the colour scale can be
+ * labelled with design counts.
+ */
+export interface DensityCell {
+  /** Bin centre on the PET axis. */
+  readonly x: number;
+  /** Bin centre on the worst-off-target axis. */
+  readonly y: number;
+  readonly count: number;
+}
+
+/**
+ * The trade-off chart's data, computed over the WHOLE space - no sampling.
+ *
+ * `frontier` is the exact Pareto frontier (maximise PET, minimise worst
+ * off-target) over every valid design. `density` is a binned count of all of
+ * them, which is what replaced the old random scatter: 1.68 million individual
+ * dots are neither drawable nor readable, but a histogram of all of them is
+ * both, and it does not throw any design away.
+ */
+export interface TradeoffPayload {
+  readonly lambda: number;
+  readonly frontier: ParetoPoint[];
+  readonly density: DensityCell[];
+  /** How many designs went into the histogram: the full space. */
+  readonly evaluated: number;
+  readonly bins: { readonly x: number; readonly y: number };
+  readonly binSize: { readonly x: number; readonly y: number };
+  readonly maxCount: number;
+  /** Index of the objective optimum at this lambda, always on the chart. */
+  readonly optimumIndex: number;
+  readonly computeMs: number;
+}
+
 export interface RunRecord {
   readonly runId: string;
   readonly config: RunConfig;
@@ -371,7 +407,7 @@ export type WorkerResponse =
   | { kind: 'score'; runId: string; payload: ScoreResponsePayload }
   | { kind: 'sweep'; runId: string; sweep: SweepPoint[] }
   | { kind: 'solveAt'; runId: string; lambda: number; candidates: CandidateRecord[] }
-  | { kind: 'pareto'; runId: string; lambda: number; points: ParetoPoint[]; sampled: number }
+  | { kind: 'pareto'; runId: string; payload: TradeoffPayload }
   | { kind: 'qubo'; runId: string; payload: QuboPayload }
   | { kind: 'verify'; runId: string; report: VerifyReport }
   | { kind: 'cancelled'; runId: string; atStage: StageId | null }

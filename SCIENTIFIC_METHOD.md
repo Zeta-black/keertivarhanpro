@@ -204,13 +204,169 @@ Provided because annealing hardware is an Ising machine. Verified to hold for
 ### NO QUANTUM HARDWARE EXECUTION
 
 No quantum processor was used at any point, in the website or in the Python
-benchmark. The problem is written in a form a quantum annealer would accept.
-**That is the entire quantum claim.** No quantum speedup or advantage is
-measured, implied or available here.
+benchmark.
+
+Two distinct quantum things exist in this repository, and conflating them would
+be the easiest way to mislead:
+
+1. **An annealer-ready formulation.** The problem is written as a 48-variable
+   QUBO, the form a quantum annealer would accept. This is a translation, not a
+   result, and nothing was submitted to a QPU.
+2. **A gate-model quantum algorithm that actually runs.** `src/qbind_select/quantum/`
+   implements the Quantum Alternating Operator Ansatz with complete-graph XY
+   mixers and runs it by **exact statevector simulation on a classical CPU**.
+   See section 8b and `results/quantum_*.csv`.
+
+**No quantum speedup or advantage is measured, implied or available here.**
+Exhaustive classical search over the same 1,679,616 designs is faster, returns
+a proven optimum, and is the reference every quantum number is scored against.
+The XY mixer is applied as an exact matrix exponential, which hardware cannot
+do; a device would need a Trotterised approximation, and that error — along
+with all device noise — is not modelled anywhere.
 
 Runtimes measured in a browser are device-specific and are **not** comparable
 with the Python benchmark, another machine, or any published hardware result.
 The UI states this above the comparison table.
+
+## 8b. Gate-model quantum optimisation
+
+Implemented in `src/qbind_select/quantum/`, mirrored for the browser in
+`web/src/science/qaoa.ts`, and run by `scripts/run_quantum.py`.
+
+**This is exact statevector simulation on a classical CPU. No quantum hardware
+is contacted, and no speedup is claimed.** Brute force over the same design
+space is faster and returns a proven optimum; that optimum is the reference
+every number below is measured against.
+
+### Why the annealer formulation is the wrong tool here
+
+Section 7 writes the problem as a 48-variable QUBO with a one-hot penalty `P`.
+For the penalty to be *provably* safe it must exceed the entire objective
+range, so no constraint violation can ever be paid for by an objective gain.
+On the real Potts model at lambda = 1 that bound gives
+
+    P = 2059.3      objective span = 125.2      ratio = 16.5x
+
+A gate-model phase separator `exp(-i gamma C)` therefore spends almost all of
+its rotation angle enforcing "exactly one family per position" and almost none
+distinguishing good designs from bad. Measured, on a 2-position (12-qubit)
+slice, with the standard transverse-field X mixer:
+
+| p | Approximation ratio | Valid measurements | Margin over random |
+| --- | --- | --- | --- |
+| 1 | 0.3261 | 25.6% | +0.0009 |
+| 2 | 0.3272 | 43.5% | +0.0020 |
+| 3 | 0.3272 | 44.6% | +0.0021 |
+
+The random baseline on that slice is 0.3252. The best margin the penalty
+encoding achieves over blind guessing is **+0.0021** — essentially nothing — and
+over half its measurements are not even valid designs.
+
+The control is run on a slice rather than the full problem for a structural
+reason: the penalty ansatz has no feasible-subspace shortcut. It must carry all
+`2^n` amplitudes, so the 48-qubit version is not simulable at all.
+
+### The fix: constrain by the mixer, not by the energy
+
+Replace the penalty with a mixer that cannot leave the feasible set — the
+Quantum Alternating Operator Ansatz (Hadfield et al. 2019). For one-hot blocks
+the appropriate choice is the complete-graph XY mixer
+
+    H_XY = sum_i sum_{u<v in block i} ( X_u X_v + Y_u Y_v )
+
+which conserves Hamming weight inside every 6-qubit block. Starting from a
+product of per-block W states — the uniform superposition over the six classes —
+the state is confined to the feasible subspace for all time. The penalty term
+disappears entirely, and **every measurement is a valid peptide design by
+construction**, not by tuning.
+
+Restricted to one block's one-hot subspace, `H_XY` acts as `2(J - I)` on the six
+class states, because `(X_u X_v + Y_u Y_v)|..1_u 0_v..> = 2|..0_u 1_v..>`. Hence
+
+    exp(-i beta H_XY) = e^(2i beta) [ I + (e^(-12 i beta) - 1)/6 * J ]
+
+`J` is rank one, so each block's mixer is a scale plus a broadcast of that
+block's axis sum: `O(dimension)` per position, with no Trotter error.
+
+### Why a 48-qubit circuit is simulable
+
+A 48-qubit statevector is `2^48` amplitudes, about 4.5 petabytes. We never build
+it. Because the mixer conserves per-block Hamming weight and the initial state
+is feasible, the evolution never leaves the feasible sector of dimension
+`6^8 = 1,679,616` — which is 27 MB in complex128. That sector is simulated
+**exactly**. This is a standard symmetry-sector simulation, not an
+approximation of the circuit.
+
+So `scripts/run_quantum.py` simulates the full 8-position, 48-qubit circuit
+exactly, with no reduction.
+
+### Measured results, full problem, real Potts data, lambda = 1
+
+Angles optimised by multi-restart Nelder-Mead with INTERP depth seeding
+(Zhou et al. 2020); seed 42. Expectation values are exact
+(infinite-shot); the shot counts in `results/quantum_run_metadata.json` are a
+separate seeded sample.
+
+| p | Parameters | Approximation ratio | Optimum probability | Enrichment vs uniform | Most likely outcome is the proven optimum? |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 2 | 0.7428 | 0.066% | 1,104x | yes |
+| 2 | 4 | 0.8193 | 0.246% | 4,137x | yes |
+| 3 | 6 | 0.8550 | 0.465% | 7,812x | yes |
+
+Uniform random sampling over the same designs scores **0.4326**; the proven
+optimum is 1.0. So the best margin over random is **+0.4224**, about
+**205x** the margin the penalty encoding manages, with validity 1.0
+rather than under 0.5.
+
+At every depth tested, the single most probable measurement outcome of the
+circuit is `LSWWLLFL` — the design exhaustive search proves is optimal
+over all 1,679,616. That is a **correctness check on the method, not evidence of
+an advantage**: brute force found the same design faster, and is how we know
+this one is right.
+
+### What it would cost on real hardware
+
+`circuit.xy_circuit_cost` counts the gates a device would execute, derived from
+the coefficients rather than asserted:
+
+| Resource | Count at p = 3 |
+| --- | --- |
+| Qubits | 48 |
+| W-state preparation CNOTs | 80 |
+| Phase-separator ZZ rotations | 3,024 |
+| Phase-separator CNOTs | 6,048 |
+| XY pair terms per layer | 120 |
+| Mixer CNOTs (1 Trotter step) | 720 |
+| **Total CNOTs, lower bound** | **6,848** |
+| Variational parameters | 6 |
+
+These are **lower bounds** on an all-to-all device. Real hardware has limited
+connectivity and needs SWAP insertion.
+
+### Limitations specific to this section
+
+- **Not executed on hardware.** Exact simulation only. No device data, no noise
+  characterisation, no hardware timing.
+- **No speedup, and none is claimable at this size.** 1,679,616 designs is
+  enumerable, which is exactly why it is a good testbed: the right answer is
+  known, so the quantum method can be graded. It is far below any size where
+  quantum hardware would be interesting.
+- **An idealised mixer.** `exp(-i beta H_XY)` is applied as an exact matrix
+  exponential. The XY terms do not commute, so hardware must Trotterise. That
+  error is not modelled, and neither is decoherence or gate infidelity.
+- **The objective is still a prediction.** A low energy means the published
+  Potts model scores that design well for PET over PE and PP. It is not a
+  measured binding affinity, and nothing has been synthesised.
+
+### Reproducing
+
+```bash
+py scripts/run_quantum.py --depths 1,2,3        # ~20 min, writes results/quantum_*
+py scripts/export_qaoa_fixture.py               # regenerate the Python/TS parity fixture
+py scripts/export_quantum_summary.py            # publish the numbers into the web app
+py -m pytest tests/test_quantum_qaoa.py -q      # 42 tests, a few seconds
+cd web && npx vitest run tests/science/qaoa-parity.test.ts
+```
 
 ## 9. Verification
 

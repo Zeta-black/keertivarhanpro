@@ -25,6 +25,9 @@ this project's data.
 | Live Ridge surrogate fit (1056 features, Cholesky) | shipped | fitted in-browser from the exact scorer | `surrogate-and-io.test.ts` (R² ≥ 0.999, splits disjoint) | R² = 1.0 is **expected** — the basis spans the model exactly. |
 | Seeded RNG, reproducibility | shipped | `mulberry32` | `surrogate-and-io.test.ts` (determinism, distribution, sampling without replacement) | Not cryptographic; never used for security. |
 | **D-Wave quantum execution** | **absent** | — | — | **NO QUANTUM HARDWARE EXECUTION.** No credentials available. Reported as `NOT EXECUTED` with a reason everywhere it appears. |
+| **Gate-model QAOA (XY mixer)** | implemented | `src/qbind_select/quantum/xy_qaoa.py` | `web/src/science/qaoa.ts`, Quantum screen | Real Quantum Alternating Operator Ansatz, **exactly simulated** on a classical CPU. 48 nominal qubits, simulated in the 1,679,616-dim feasible sector. p=3 ratio 0.855 vs 0.433 random; validity 1.0 by construction. **No hardware, no speedup claimed.** |
+| **Penalty-QUBO QAOA control** | implemented | `src/qbind_select/quantum/qaoa.py` | Quantum screen comparison table | The annealer-shaped encoding with an X mixer, as the control that shows why the mixer choice matters: margin over random +0.0021 vs +0.4224. |
+| **Gate-cost accounting** | implemented | `src/qbind_select/quantum/circuit.py` | `circuitCost()` | QUBO→Ising transform and gate counts derived from the coefficients, reported as lower bounds on an all-to-all device. Never executed. |
 
 ## Screens
 
@@ -33,7 +36,7 @@ this project's data.
 | Discover — 30-second framing, plastics, how-it-works, honesty | shipped | `screens.test.tsx`, E2E route coverage, persona review | Comprehension by a real novice is **unverified**. |
 | Build — drag / tap / keyboard editor, live rescoring, before-after explanation, A/B slots, guided challenge | shipped | `screens.test.tsx` (14 tests), E2E (keyboard, arrows, real `dragTo`, native `DragEvent`, tap-to-place, undo/redo) | HTML5 drag is desktop-only; mobile uses tap-to-place (separately tested). |
 | Optimise — Selectivity Priority slider, 9-stage live pipeline, cancel | shipped | `screens.test.tsx`, E2E (full run, cancel, stale-drop, main-thread responsiveness) | Exact re-solve needs a completed run; the screen says so before one exists. |
-| Compare — podium, sortable table, λ sweep, Pareto, solver comparison | shipped | `screens.test.tsx`, E2E | Pareto is **sampled** (1200 of 1.68M) and badged `Sampled`. |
+| Compare — podium, sortable table, λ sweep, trade-off chart, solver comparison | shipped | `screens.test.tsx`, `layout-feedback.test.tsx`, E2E | The trade-off chart uses **all 1,679,616** designs: the exact Pareto frontier (52 designs, verified against a full sort-and-sweep reference) over a log-shaded density grid of every design. Badged `Computed`; it was previously a 1,200-design random sample badged `Sampled`. |
 | Understand — 48 switches, QUBO heatmap, scale, confidence centre, about, honesty | shipped | `screens.test.tsx`, E2E (heatmap draws >200 cells, penalty value correct) | Scale curves are **derived counts**, badged `Model estimate`, not runtimes. |
 | Results — written report, provenance, six downloads, print styles | shipped | `screens.test.tsx`, E2E (all six download, parse, match on-screen values) | Results are session-only; a reload returns to cold state by design. |
 | **Judge Demo route (3-minute guided demonstration)** | **absent** | — | Specified in the brief §11. Not built. **Quality Gate 9 fails.** |

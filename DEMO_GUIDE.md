@@ -71,7 +71,7 @@ says so wherever a sequence appears.
 
 ---
 
-## 0:50–1:25 — Build and score a design (`/build`)
+## 0:50–1:20 — Build and score a design (`/build`)
 
 **Do:** drag the **Large aromatic ring** family from the palette onto
 **position 1**. (On a touch screen: tap the family, then tap the position. With
@@ -93,7 +93,7 @@ beating the optimiser by hand is hard.
 
 ---
 
-## 1:25–2:05 — The optimisation (`/optimise`)
+## 1:20–1:50 — The optimisation (`/optimise`)
 
 **Do:** drag the **Selectivity Priority** slider from 1 to 5, then back to 1.
 
@@ -121,7 +121,7 @@ mid-run and show that it actually stops and keeps no partial numbers.
 
 ---
 
-## 2:05–2:35 — Results and solver comparison (`/compare`)
+## 1:50–2:15 — Results and solver comparison (`/compare`)
 
 **Expect:** a podium with **rank 1 marked "proven best"**.
 
@@ -137,16 +137,71 @@ published Python benchmark reports."
   it samples in binary space and can produce invalid assignments;
 - *D-Wave quantum annealer* — **NOT EXECUTED**.
 
-**Say, unprompted:** "**No quantum hardware ran.** The problem is written as a
-QUBO, which is the format a quantum annealer accepts, and that is the entire
-quantum claim. No speedup is measured or implied."
+**Say, unprompted:** "**No quantum hardware ran, anywhere in this project.**
+This row is the annealer path, and it reports NOT EXECUTED because we had no
+credentials. Writing the problem as a QUBO is a translation, not a result —
+so let me show you the part that actually is a quantum algorithm."
 
 **Point at:** the banner above the table warning that runtimes are
 device-specific and not comparable to any other machine.
 
 ---
 
-## 2:35–3:00 — Audit trail and limits (`/understand`, `/results`)
+## 2:15–2:45 — Run the quantum circuit (`/quantum`)
+
+This is the beat that answers "what is actually quantum here?", so do not rush
+it and do not skip the disclaimer — leading with the limitation is what makes
+the rest credible.
+
+**Do:** open `/quantum`. Leave the defaults (4 free positions, p = 2).
+
+**Say while it loads:** "One qubit per switch — eight positions times six
+families is 48 qubits. The algorithm is QAOA with an XY mixer, and the mixer is
+the interesting choice: it physically cannot produce a design with two families
+at one position, so every measurement is a valid peptide."
+
+**Do:** press **Run the quantum circuit**. It finishes in well under a second.
+
+**Point at:** the four stat tiles, in this order —
+- *Approximation ratio* — "1.0 would be the proven optimum; random guessing on
+  this slice is the number in the tooltip";
+- *Valid designs returned: 100%* — "guaranteed by the mixer, not by tuning";
+- *Optimum found* — "the single most likely measurement is the design brute
+  force proved is best";
+- *Optimum enrichment* — "versus blind sampling of the same designs".
+
+**Say, unprompted, before anyone asks:** "This is **simulated**, not run on a
+quantum computer. Every amplitude is computed on this CPU. And **I am not
+claiming a speedup** — brute force solves this faster and gives a *proven*
+answer, which is exactly why I use it as the reference rather than the rival."
+
+**Scroll to:** *The full problem: all 48 qubits*.
+
+**Say:** "The browser runs a slice so it is instant. Offline we run the whole
+thing — all 1,679,616 designs, the full 48-qubit circuit, simulated exactly.
+Approximation ratio 0.855 at depth 3 against a 0.433 random baseline, and the
+most likely measurement is the proven optimum. Twenty minutes, so it is not a
+live demo."
+
+**If a judge asks how 48 qubits is possible** (this is the good question):
+"It should not be — 2^48 amplitudes is four and a half petabytes. The XY mixer
+conserves the number of 1s inside each position's block, so starting from a
+valid state the circuit can never leave the valid set. That is a subspace of
+dimension 6^8, about 1.7 million, which is 27 megabytes. We simulate that
+exactly. It is a symmetry-sector simulation, not an approximation."
+
+**Scroll to:** *Why the mixer matters more than the hardware*.
+
+**Say:** "This is the finding I would actually defend. The penalty formulation
+an annealer needs is measurably the wrong choice for a gate circuit here. A
+provably safe penalty has to be bigger than the whole objective range, which
+makes it sixteen times larger than the differences we are trying to resolve. It
+beats random guessing by 0.002. The mixer version beats it by 0.42 — about two
+hundred times the margin — and wastes none of its shots."
+
+---
+
+## 2:45–3:00 — Limits (`/understand`, `/results`)
 
 **Do:** open `/understand` → **Confidence centre** → **Re-run the checks**.
 
@@ -175,7 +230,9 @@ the run can be repeated."
 
 | Question | Answer |
 | --- | --- |
-| "Did you use a quantum computer?" | No. NO QUANTUM HARDWARE EXECUTION. The QUBO is in the right format; nothing was submitted to a QPU. |
+| "Did you use a quantum computer?" | No. NO QUANTUM HARDWARE EXECUTION. But we do run a real gate-model quantum algorithm — XY-mixer QAOA — by exact statevector simulation. Simulated means every amplitude is computed on an ordinary CPU. Nothing was submitted to a QPU. |
+| "Then what is quantum about it?" | The algorithm. A 48-qubit QAOA circuit, simulated exactly inside the feasible subspace the XY mixer cannot leave. At p=3 it reaches approximation ratio 0.855 against a 0.433 random baseline, and its most likely measurement is the design brute force proves is optimal. Run it yourself on the Quantum screen. |
+| "Is it faster than classical?" | No, and we do not claim it. Brute force over the same 1,679,616 designs is faster and returns a *proven* optimum — which is exactly why we use it as the reference rather than the rival. |
 | "Is the 3D molecule real?" | No. It is an illustration. There are no atomic coordinates in this project at all. |
 | "Does this peptide bind PET?" | Unknown. Nothing was synthesised or tested. The score is a dimensionless ranking quantity inside one model. |
 | "Why is the surrogate R² exactly 1.0? That looks like leakage." | The feature basis exactly spans the Potts model, so Ridge recovers it to numerical precision. Splits are verified disjoint, and the Confidence centre shows that check. |

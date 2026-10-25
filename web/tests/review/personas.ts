@@ -234,6 +234,24 @@ export const PERSONAS: readonly Persona[] = [
   },
 ];
 
+/**
+ * Screens this sweep covers.
+ *
+ * `quantum` is deliberately NOT here, and the reason is runtime rather than
+ * coverage. This harness renders one full app per environment, and its cost
+ * per environment grows as a run proceeds: measured on this suite, 80
+ * scenarios take 84s but 250 take over 600s. Adding a seventh screen pushes
+ * the environment count from 144 to 168 and took the whole file from 197s to
+ * over 20 minutes, which is long enough that nobody would run it.
+ *
+ * It is not a coverage gap. The Quantum screen is checked by
+ * `tests/ui/quantum-screen.test.tsx` (12 behavioural tests, including a real
+ * circuit run compared against the science module), by the axe sweep in
+ * `tests/ui/a11y.test.tsx`, by `tests/ui/modes.test.tsx`, by the navigation
+ * tests in `tests/ui/screens.test.tsx`, and by the `/quantum` route in the
+ * Playwright sweep. This file would add no check those five do not already
+ * make.
+ */
 export const SCREEN_IDS = [
   'discover',
   'build',

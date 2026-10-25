@@ -429,10 +429,7 @@ function applyWorkerMessage(state: AppState, message: WorkerResponse): AppState 
     }
 
     case 'pareto':
-      return {
-        ...state,
-        pareto: { lambda: message.lambda, points: message.points, sampled: message.sampled },
-      };
+      return { ...state, pareto: message.payload };
 
     case 'qubo':
       return { ...state, qubo: message.payload };

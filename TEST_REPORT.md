@@ -15,11 +15,12 @@ environment. Nothing is estimated or extrapolated.
 | --- | --- | --- |
 | TypeScript | `npx tsc --noEmit` | **clean** |
 | Production build | `npm run build` | **passes** |
-| Python benchmark | `py -m pytest -q` | **10 passed** (3 skip without the uncommitted dataset) |
-| Unit / property / integration | `npx vitest run` | **816 passed / 816** |
-| Measured executed assertions | `npm run assertions` | **29,464** |
+| Python benchmark | `py -m pytest -q` | **51 passed** (3 skip without the uncommitted dataset) |
+| Unit / property / integration | `npx vitest run` | **999 passed / 999** in 313s |
+| Measured executed assertions | `npm run assertions` | **36,228** (single clean run — see note below) |
+| Python↔TypeScript QAOA parity | part of the Vitest run | **56 cases agree to 1e-9** |
 | Real-browser E2E | `npx playwright test` | **126 passed, 0 failed, 4 skipped** |
-| Simulated persona review | part of the Vitest run | **500 scenarios, 144 environments, 4,969 checks, 0 findings** |
+| Simulated persona review | part of the Vitest run | **500 scenarios, 144 environments, 4,969 checks, 0 critical / 105 major** (pre-existing; see §5) |
 | Accessibility (axe-core) | part of the Vitest run | **14 scans, 0 violations** |
 | WCAG 2.2 AA contrast | part of the Vitest run | **100 checks, both themes** |
 | Dependency audit | `npm audit` / `--omit=dev` | **0 vulnerabilities in both scopes** |
@@ -31,10 +32,28 @@ environment. Nothing is estimated or extrapolated.
 
 ```
 $ npx vitest run
- Test Files  10 passed (10)
-      Tests  816 passed (816)
-   Duration  105.20s
+ Test Files  17 passed (17)
+      Tests  999 passed (999)
+   Duration  313.00s
 ```
+
+> **The assertion figure is 36,228, and getting it right needed one more step.**
+> `tests/setup.ts` *appends* each worker's total to
+> `web/.vitest-assertions.jsonl`, and `npm run assertions` sums the file. Run
+> the suite twice without clearing it and the two runs are added together.
+>
+> An earlier draft of this report published **433,637** from precisely that
+> mistake: several accumulated runs plus entries from throwaway probe files.
+> The correct procedure, and the one used for the figure above, is
+>
+> ```bash
+> cd web && rm -f .vitest-assertions.jsonl && npx vitest run && npm run assertions
+> ```
+>
+> The previous documented figure of 29,464 was a smaller suite; the rise to
+> 36,228 is the 183 tests added for the quantum layer and the layout review.
+> The counter itself was verified against a controlled probe - ten tests with
+> three assertions each reported exactly 30.
 
 ### Measured assertion counts
 
@@ -155,8 +174,8 @@ No test is skipped to avoid a failure.
 
 ```
 $ py -m pytest -q
-..........                      [100%]
-10 passed in 11.00s
+...................................................   [100%]
+51 passed in 31.04s
 ```
 
 With the uncommitted 23 MB `QA-PBP-RL-Nexus` source removed:
@@ -176,7 +195,138 @@ New assertions added to `tests/test_real_data_loader.py`:
 
 ---
 
+## 4b. Quantum layer validation
+
+41 new pytest cases in `tests/test_quantum_qaoa.py`, plus 56 parity cases and
+19 summary-integrity cases on the TypeScript side. The ones that would actually
+catch a wrong answer, rather than only a crash:
+
+### Four independent paths to the same energy
+
+The reduction folds clamped-context interactions into effective one-body terms.
+If that were wrong, everything downstream would be wrong but *self-consistent*,
+so each representation is checked against `score_codes` — the function the
+classical pipeline already depends on:
+
+| Check | Agreement |
+| --- | --- |
+| Sub-problem slice energy vs `score_codes` | < 1e-9 |
+| Combined class coefficients vs `-PET + λ(PE+PP)` | < 1e-9 |
+| QUBO cost diagonal vs direct QUBO evaluation | < 1e-9 |
+| Ising form vs QUBO form | < 1e-7 |
+| XY objective tensor vs `score_codes`, every state | < 1e-9 |
+| XY tensor vs the independently cached full-space scores | **2.8e-13** |
+
+The last row is the strongest: the 1,679,616-entry objective tensor built by
+broadcasting effective coefficients is compared against
+`data/processed/all_8mer_scores_real.npz`, which was produced by a completely
+separate code path.
+
+### Physics invariants
+
+| Property | Result |
+| --- | --- |
+| XY mixer unitarity, β ∈ {0, 0.21, 1.4, −2.3, π} | norm preserved to 1e-11 |
+| XY mixer at β = 0 | exactly the identity (0.0 difference) |
+| Product-W state is a mixer eigenvector | rephased only, to 1e-12 |
+| X mixer at β = π/2 flips every qubit | probability > 1 − 1e-12 |
+| Depth-0 expectation equals the uniform mean | < 1e-9 |
+| Statevector norm after p layers | 1.0 to 1e-11 |
+| Penalised QUBO ground state | one-hot valid, and equals the brute-force optimum |
+| Phase rescaling is mean-zero, unit-span, invertible | < 1e-9 |
+
+### Optimiser
+
+- The hand-written Nelder-Mead is validated against
+  `scipy.optimize.minimize(method='Nelder-Mead')` on Rosenbrock: same optimum
+  to 1e-3, final value < 1e-8. It is hand-written so the browser can run the
+  identical algorithm.
+- Determinism: identical inputs give byte-identical angles, expectation and
+  shot counts, in both languages.
+- Depth sweeps must not regress — asserted. This test exists because a defect
+  was found: with random restarts only, p=3 scored *worse* than p=2
+  (0.767 vs 0.819) because the simplex was trapped. INTERP seeding
+  (Zhou et al. 2020) removed the inversion, and the test now pins it.
+
+### Head-to-head claim, tested as a relative comparison
+
+`test_xy_ansatz_beats_the_penalty_encoding_on_the_same_slice` runs both ansätze
+on one identical slice and requires the XY margin over random to exceed the
+penalty margin, and XY validity to be 1 while penalty validity is below 1.
+
+Asserted relatively, on purpose. An earlier version of this test used an
+absolute threshold (`ratio < 0.6`) calibrated on the real Potts model, and it
+**failed** on the proxy model used by the fast test path — where the penalty
+ansatz scores 0.637. The penalty-to-objective scale ratio differs between the
+two models, so an absolute cut-off measures the fixture rather than the method.
+The relative form holds on both.
+
+### Cross-language parity
+
+`web/tests/science/qaoa-parity.test.ts` pins the browser implementation to the
+Python one at 1e-9, against `web/tests/fixtures/qaoa_golden.json` generated by
+`scripts/export_qaoa_fixture.py` from the real coefficients. Two slice widths ×
+four fixed angle schedules; each compares the objective tensor (including spot
+energies at fixed indices, which catch a transposed axis order that matching
+totals would hide), the statevector norm, the expectation value, the top-8
+outcome probabilities, the optimum probability, and a sum-of-squares checksum
+over the whole distribution.
+
+Angles are **fixed, not optimised**, in the fixture: two Nelder-Mead runs in two
+languages legitimately take different floating-point paths, so optimiser parity
+is not a meaningful target. The physics for given angles is.
+
+### Anti-drift on published numbers
+
+`web/tests/science/quantum-summary.test.ts` re-reads `results/quantum_*.csv` and
+`quantum_run_metadata.json` and requires the generated
+`web/src/generated/quantumBenchmark.ts` — which the Quantum screen quotes — to
+match row for row, including the derived margin figures. A stale export fails
+the suite instead of shipping numbers that describe no run. It also pins the
+honesty invariants: `quantumHardwareExecuted === false`, XY validity exactly 1,
+penalty validity strictly below 1, every ratio inside [0, 1] and above its own
+random baseline, and the gate cost labelled both "LOWER BOUND" and
+"NOT EXECUTED".
+
+### Screen behaviour
+
+`web/tests/ui/quantum-screen.test.tsx` stubs `fetch` with the real exported
+coefficients, clicks the run button, and asserts the on-screen approximation
+ratio equals what `src/science/qaoa.ts` computes for the same inputs — so a
+screen printing plausible constants would fail. It also checks the empty state
+shows no live numbers, the qubit map covers all 24 qubits, changing the width
+changes the circuit, and a model-load failure produces an honest error with no
+run control rather than placeholder physics.
+
+---
+
 ## 5. Simulated persona review
+
+> **The persona figure was re-measured, and it is not zero.** Earlier revisions
+> of this file recorded "0 findings". A full run on the current tree reports
+> **0 critical / 105 major / 0 minor** across 4,969 checks. Both finding
+> classes were verified against the committed tree and are **pre-existing, not
+> introduced by the quantum or layout work**:
+>
+> - **84 x `onePurpose` on Discover.** The check wants the screen's
+>   one-sentence purpose in the rendered text, with an exemption for Discover
+>   if the literal strings `The problem.` and `What this does.` appear. The hero
+>   renders those as `<dt>` labels with no trailing full stop, so
+>   `textContent` yields `The problemRecycling works far better...` and the
+>   exemption never matches. `git show HEAD` confirms the same period-less
+>   markup, and that `SCREENS.discover.purpose` has never been rendered on that
+>   screen.
+> - **21 x `jargonExplained` on Results.** A bare lambda symbol appears without
+>   the plain-language name in some cold-data scenarios. `Results.tsx` is
+>   byte-identical to the committed version for that term, and the card removed
+>   from `ScientificValidity.tsx` contained neither a lambda nor the phrase, so
+>   that edit cannot have caused it.
+>
+> The suite still passes because it gates on **critical** findings, of which
+> there are none. The 105 majors are recorded in
+> `web/review/persona-matrix.json` as open, which is where they should be:
+> visible, attributed, and not silently relabelled as zero.
+
 
 ```
 [persona review] 500 scenarios, 144 environments rendered, 4,969 checks executed,

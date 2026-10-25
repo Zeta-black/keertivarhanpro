@@ -42,6 +42,16 @@ not a biological measurement.
 
 Brute force enumerates valid class sequences only, yielding the exact surrogate
 optimum for this deliberately small benchmark. Simulated annealing and the
-D-Wave-compatible BQM receive the same constrained objective. No quantum
-advantage is inferred. Leap is only marked executed when the API actually
-returns a sample; otherwise the saved BQM path is ready but status is unavailable.
+D-Wave-compatible BQM receive the same constrained objective. Leap is only
+marked executed when the API actually returns a sample; otherwise the saved BQM
+path is ready but status is unavailable.
+
+A gate-model quantum algorithm is additionally run on the same objective:
+XY-mixer QAOA (the Quantum Alternating Operator Ansatz), by exact statevector
+simulation inside the one-hot feasible subspace. See `SCIENTIFIC_METHOD.md`
+section 8b and `results/quantum_*.csv`.
+
+**No quantum advantage is inferred, from any solver.** No quantum hardware was
+executed. Every quantum approximation ratio is measured against the exact
+brute-force optimum over the identical design space, which is faster to obtain
+and is used as the reference rather than as a competitor.

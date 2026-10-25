@@ -2,6 +2,16 @@
 /**
  * Sums the real executed-assertion counts that tests/setup.ts recorded.
  * Reports per-file and total. No estimates, no extrapolation.
+ *
+ * IMPORTANT: the log is APPEND-ONLY. tests/setup.ts adds a line per worker on
+ * teardown, so running the suite twice without clearing the file makes this
+ * script report the sum of both runs - and deleted test files keep
+ * contributing until the file is removed. For a figure you intend to publish:
+ *
+ *   rm -f web/.vitest-assertions.jsonl && npx vitest run && npm run assertions
+ *
+ * Passing --clean removes the log after reporting, which is the other way to
+ * stay honest.
  */
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { resolve, basename } from 'node:path';

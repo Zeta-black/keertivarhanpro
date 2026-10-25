@@ -30,6 +30,9 @@ const OptimiseScreen = lazy(() =>
 const CompareScreen = lazy(() =>
   import('./screens/Compare').then((m) => ({ default: m.CompareScreen })),
 );
+const QuantumScreen = lazy(() =>
+  import('./screens/Quantum').then((m) => ({ default: m.QuantumScreen })),
+);
 const UnderstandScreen = lazy(() =>
   import('./screens/Understand').then((m) => ({ default: m.UnderstandScreen })),
 );
@@ -122,6 +125,8 @@ function Routes(): JSX.Element {
         return <OptimiseScreen />;
       case 'compare':
         return <CompareScreen />;
+      case 'quantum':
+        return <QuantumScreen />;
       case 'understand':
         return <UnderstandScreen />;
       case 'results':

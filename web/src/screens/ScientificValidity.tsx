@@ -263,34 +263,6 @@ export function ScientificValidity({ run }: { readonly run: RunRecord }): JSX.El
           </ul>
         </Card>
 
-        <Card>
-          <h3 style={{ fontSize: 'var(--fs-md)' }}>What would raise each status</h3>
-          <dl className="validity-next">
-            <div>
-              <dt>Quantum execution</dt>
-              <dd>
-                Submit the 48-variable QUBO to annealing hardware, report the embedding, the chain
-                strength, the anneal schedule and the raw sample distribution, and compare against
-                the proven optimum already computed here.
-              </dd>
-            </div>
-            <div>
-              <dt>Structural claims</dt>
-              <dd>
-                Replace the generated conformer with an ensemble from a force field or an
-                experimental structure, and report the method and the energies.
-              </dd>
-            </div>
-            <div>
-              <dt>Binding claims</dt>
-              <dd>
-                Synthesise the top candidates and measure adsorption on PET, PE and PP films under
-                stated conditions. Until then, no row above can move out of &ldquo;not
-                done&rdquo;.
-              </dd>
-            </div>
-          </dl>
-        </Card>
       </div>
 
       <Disclosure summary="How this assessment is produced">

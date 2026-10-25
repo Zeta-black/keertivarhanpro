@@ -7,8 +7,10 @@
  * The honest summary is short:
  *
  *   The search problem is encoded in the input format a quantum annealer
- *   accepts. Nothing was executed on quantum hardware. The optimum was found
- *   classically, by exhaustion, and is therefore proven rather than sampled.
+ *   accepts, AND a real gate-model quantum algorithm is run on it by exact
+ *   statevector simulation (see the Quantum screen). Nothing was executed on
+ *   quantum hardware. The optimum reported on Results was found classically,
+ *   by exhaustion, and is therefore proven rather than sampled.
  *
  * Both modes get the same answer. Beginner mode gets it in plain words;
  * Researcher mode additionally gets the algebra and the constraint handling.
@@ -25,7 +27,7 @@ import {
 } from '../science/alphabet';
 import { useStore } from '../state/store';
 
-type Hardware = 'classical' | 'formulation' | 'none';
+type Hardware = 'classical' | 'formulation' | 'simulated' | 'none';
 
 interface Stage {
   readonly n: number;
@@ -40,6 +42,7 @@ const HARDWARE_META: Readonly<
 > = {
   classical: { label: 'Ran classically, in your browser', token: 'var(--accent)' },
   formulation: { label: 'Quantum-compatible format', token: 'var(--optimise)' },
+  simulated: { label: 'Real quantum algorithm, exactly simulated', token: 'var(--success)' },
   none: { label: 'Did not run', token: 'var(--danger)' },
 };
 
@@ -100,11 +103,20 @@ const STAGES: readonly Stage[] = [
   },
   {
     n: 7,
+    title: 'Run a real quantum algorithm on it — simulated',
+    plain:
+      'A genuine quantum circuit is built for this objective and run, by simulating every amplitude exactly on an ordinary processor. See the Quantum screen, where you can run it yourself.',
+    technical:
+      'Quantum Alternating Operator Ansatz with complete-graph XY mixers over the one-hot blocks (Hadfield et al. 2019). Nominal width 48 qubits; simulated exactly inside the 6^8 = 1,679,616-dimensional feasible sector the mixer cannot leave. Scored against the brute-force optimum: no speedup claimed.',
+    hardware: 'simulated',
+  },
+  {
+    n: 8,
     title: 'Run it on a quantum processor',
     plain:
       'This step was not performed. No quantum computer was used at any point, here or in the Python benchmark behind this site.',
     technical:
-      'No QPU submission, no embedding, no chain strength, no anneal schedule, no raw sample distribution. The run record stores quantumHardware = "NO QUANTUM HARDWARE EXECUTION".',
+      'No QPU submission, no embedding, no chain strength, no anneal schedule, no raw sample distribution. The run record stores quantumHardware = "NO QUANTUM HARDWARE EXECUTION". The XY mixer is also applied as an exact exponential, which hardware cannot do; a device would Trotterise, and that error is not modelled.',
     hardware: 'none',
   },
 ];
@@ -121,10 +133,13 @@ export function QuantumConnection(): JSX.Element {
         <h2 className="section-title">What exactly is quantum about this project?</h2>
 
         <p className="answer-lead">
-          The search problem is written in the input format a quantum annealer accepts. That is
-          the entire quantum claim. <strong>No quantum hardware was used</strong>, and the answer
-          on the Results page was found classically &mdash; by checking every design, which makes
-          it proven rather than estimated.
+          Two separate things, and they are worth keeping apart. First, this search problem is
+          written in the input format a quantum annealer accepts &mdash; that is a formulation,
+          not a result. Second, a real gate-model quantum algorithm is actually run on it, by
+          exact statevector simulation, on the <strong>Quantum</strong> screen.{' '}
+          <strong>No quantum hardware was used in either case</strong>, and the answer on the
+          Results page was found classically &mdash; by checking every design, which makes it
+          proven rather than estimated.
         </p>
 
         <ModeSplit
@@ -212,9 +227,10 @@ QUBO       E(x) = sum_u  Q[u,u] x_u  +  sum_{u<v} Q[u,v] x_u x_v
         </p>
         <Beginner>
           <p className="plain-note">
-            Put simply: this project has done the translation work that would let a quantum machine
-            be used, and has not used one. The honest headline is &ldquo;quantum-ready
-            formulation&rdquo;, not &ldquo;quantum result&rdquo;.
+            Put simply: a QUBO is a translation, not an achievement. The honest headline for{' '}
+            <em>this</em> page is &ldquo;annealer-ready formulation&rdquo;. The quantum algorithm
+            that genuinely runs is on the Quantum screen, and it is simulated rather than executed
+            on a machine &mdash; which is also stated plainly there.
           </p>
         </Beginner>
         {quantumRow ? (

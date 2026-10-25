@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type ButtonHTMLAttributes,
@@ -116,17 +117,92 @@ export function InfoTip({
   readonly body: string;
   readonly label?: string;
 }): JSX.Element {
-  const [open, setOpen] = useState(false);
+  // `pinned` is a click; `hovering` is a pointer or focus pass. Keeping them
+  // apart is what stops a tip you deliberately opened from vanishing the
+  // moment the pointer drifts off the 18px button.
+  const [pinned, setPinned] = useState(false);
+  const [hovering, setHovering] = useState(false);
+  const open = pinned || hovering;
+
   const id = useId();
   const wrapRef = useRef<HTMLSpanElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const tipRef = useRef<HTMLSpanElement>(null);
+  const [box, setBox] = useState<{ left: number; top: number } | null>(null);
+
+  const close = useCallback(() => {
+    setPinned(false);
+    setHovering(false);
+  }, []);
+
+  /**
+   * Position the tip in viewport coordinates.
+   *
+   * It is `position: fixed`, not absolute, for two reasons. An absolutely
+   * positioned tip is clipped by any scrolling ancestor - and several of these
+   * buttons sit inside `.scroll-x` tables, where the tip was being cut off.
+   * And with a containing block only as wide as the button, shrink-to-fit
+   * collapsed the tip to its longest word, which is what produced the narrow
+   * vertical column of text. Fixed positioning plus an explicit width in CSS
+   * removes both problems.
+   */
+  useLayoutEffect(() => {
+    if (!open) {
+      setBox(null);
+      return;
+    }
+    const place = () => {
+      const anchor = buttonRef.current?.getBoundingClientRect();
+      const tip = tipRef.current;
+      if (!anchor || !tip) return;
+      const gap = 8;
+      const margin = 12;
+      const width = tip.offsetWidth;
+      const height = tip.offsetHeight;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      // Start aligned to the button, then pull back inside both edges.
+      let left = anchor.left;
+      if (left + width > viewportWidth - margin) left = viewportWidth - margin - width;
+      if (left < margin) left = margin;
+
+      // Below by default. Flip above only when below genuinely does not fit
+      // and above does, so the tip does not jump around unnecessarily.
+      let top = anchor.bottom + gap;
+      const fitsBelow = top + height <= viewportHeight - margin;
+      const fitsAbove = anchor.top - gap - height >= margin;
+      if (!fitsBelow && fitsAbove) top = anchor.top - gap - height;
+      else if (!fitsBelow) top = Math.max(margin, viewportHeight - margin - height);
+
+      setBox({ left, top });
+    };
+
+    place();
+    // `true` captures scrolls on inner containers too, not just the window.
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, title, body]);
 
   useEffect(() => {
     if (!open) return;
     const onDocDown = (event: MouseEvent | TouchEvent) => {
-      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (wrapRef.current?.contains(target)) return;
+      if (tipRef.current?.contains(target)) return;
+      close();
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key !== 'Escape') return;
+      // Deliberately does NOT move focus. The button is already the focused
+      // element for a keyboard user - that is how the tip was opened - and
+      // calling focus() here re-fired onFocus, which set `hovering` again and
+      // reopened the tip Escape had just dismissed.
+      close();
     };
     document.addEventListener('mousedown', onDocDown);
     document.addEventListener('touchstart', onDocDown);
@@ -136,30 +212,41 @@ export function InfoTip({
       document.removeEventListener('touchstart', onDocDown);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [open, close]);
 
   return (
-    <span ref={wrapRef} style={{ position: 'relative', display: 'inline-flex' }}>
+    <span ref={wrapRef} className="infotip-wrap">
       <button
+        ref={buttonRef}
         type="button"
         className="info-btn"
         aria-expanded={open}
         aria-describedby={open ? id : undefined}
         aria-label={label ?? `What is ${title}?`}
-        onClick={() => setOpen((v) => !v)}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
+        onClick={() => {
+          setPinned((was) => !was);
+          setHovering(false);
+        }}
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
+        onFocus={() => setHovering(true)}
+        onBlur={() => setHovering(false)}
       >
         i
       </button>
       {open ? (
         <span
+          ref={tipRef}
           id={id}
           role="tooltip"
           className="tooltip"
-          style={{ top: 'calc(100% + 8px)', left: 0 }}
+          style={{
+            left: box ? `${box.left}px` : 0,
+            top: box ? `${box.top}px` : 0,
+            // Hidden for the one frame before it has been measured, so it is
+            // never seen in the wrong place.
+            visibility: box ? 'visible' : 'hidden',
+          }}
         >
           <span className="tooltip-title">{title}</span>
           <span>{body}</span>

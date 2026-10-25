@@ -1,0 +1,396 @@
+{
+  "timestamp_utc": "2026-10-24T13:38:04.468141+00:00",
+  "git_commit": "bc28bd37ee7646522251cd28d68140e41174461a",
+  "dataset_source_identifier": "REAL PUBLIC DATA: QA-PBP-RL-Nexus PottsModel_Energies, PET/PE/PP bb1; arithmetic 20-aa-to-6-class aggregation; canonical binding score = negative raw Potts energy",
+  "source_checksum": "ea704a2f0ccc0af2d621262ea2d82f649c4cfda78145cd844c04277696cb683a",
+  "preprocessing_version": "0.1.0",
+  "score_orientation": "higher canonical binding score = stronger predicted binding",
+  "normalization_method": "none",
+  "random_seed": 42,
+  "software": {
+    "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.26100-SP0"
+  },
+  "warnings": [
+    "All outputs are computational predictions, not biological validation.",
+    "NO QUANTUM HARDWARE EXECUTION. Exact classical statevector simulation only.",
+    "NO QUANTUM SPEEDUP IS CLAIMED OR DEMONSTRATED."
+  ],
+  "d_wave_executed": false,
+  "method": {
+    "primary": "Quantum Alternating Operator Ansatz (QAOA with complete-graph XY mixers) on the one-hot feasible subspace",
+    "reference": "Hadfield et al. 2019 (QAOA ansatz family); Farhi et al. 2014 (QAOA); Zhou et al. 2020 (INTERP seeding)",
+    "control": "Penalty-QUBO QAOA with the standard transverse-field X mixer",
+    "classical_reference": "exact brute force over the same design space",
+    "lambda": 1.0,
+    "optimiser": "Nelder-Mead simplex, multi-restart with INTERP depth seeding",
+    "seed": 42
+  },
+  "simulation": {
+    "engine": "NumPy exact statevector, float64/complex128",
+    "hardware": "classical CPU",
+    "quantum_hardware_executed": false,
+    "nominal_circuit_width_qubits": 48,
+    "naive_statevector_amplitudes": "2**48",
+    "simulated_feasible_dimension": 1679616,
+    "why_tractable": "The complete-graph XY mixer conserves Hamming weight inside every one-hot block, so a feasible initial state confines the dynamics to the 6**8 = 1,679,616-dimensional feasible sector. That sector is simulated exactly in 27 MB. This is a symmetry-sector simulation, not an approximation of the circuit.",
+    "unmodelled_error": "The XY mixer is applied as an exact matrix exponential. Gate-model hardware must Trotterise non-commuting XY terms; that Trotter error, and all device noise, are NOT modelled."
+  },
+  "search_space": {
+    "positions": 8,
+    "classes": 6,
+    "one_hot_binary_variables": 48,
+    "valid_designs": 1679616,
+    "proven_optimum_energy": -383.48736111111117,
+    "proven_optimum_class_sequence": "HYDROPHOBIC-SMALL_POLAR-AROM_W-AROM_W-HYDROPHOBIC-HYDROPHOBIC-AROM_FY-HYDROPHOBIC",
+    "proven_optimum_representative_sequence": "LSWWLLFL",
+    "uniform_mean_energy": -77.68222820987656,
+    "worst_energy": 155.47172222222218
+  },
+  "headline": {
+    "best_depth": 3,
+    "approximation_ratio": 0.8550313964410305,
+    "random_baseline_ratio": 0.43260046567931865,
+    "validity_rate": 1.0,
+    "found_proven_optimum_as_most_likely_outcome": true,
+    "optimum_probability": 0.004651104576124457,
+    "enrichment_over_uniform_sampling": 7812.069663731855,
+    "optimum_rank_by_probability": 1
+  },
+  "penalty_control": {
+    "free_positions": [
+      0,
+      7
+    ],
+    "clamped_context_class_sequence": "HYDROPHOBIC-SMALL_POLAR-AROM_W-AROM_W-HYDROPHOBIC-HYDROPHOBIC-AROM_FY-HYDROPHOBIC",
+    "penalty_P": 2059.2639844444443,
+    "objective_span": 125.16704222222211,
+    "interpretation": "A provably safe one-hot penalty must exceed the whole objective range, so P dwarfs the span the optimiser needs to resolve. This is why the penalty encoding, which an annealer requires, is a poor fit for a gate-model variational circuit.",
+    "circuit": {
+      "qubits": 12,
+      "qaoa_layers": 3,
+      "hadamard": 12,
+      "rz": 234,
+      "rzz": 198,
+      "rx": 36,
+      "cnot_lower_bound": 396,
+      "single_qubit_total": 84,
+      "two_qubit_total_lower_bound": 396,
+      "variational_parameters": 6
+    }
+  },
+  "hardware_cost_if_executed": {
+    "qubits": 48,
+    "qaoa_layers": 3,
+    "trotter_steps_per_layer": 1,
+    "w_state_prep_cnot": 80,
+    "phase_separator_rz": 144,
+    "phase_separator_zz": 3024,
+    "phase_separator_cnot": 6048,
+    "xy_pair_terms_per_layer": 120,
+    "mixer_cnot": 720,
+    "mixer_single_qubit": 1080,
+    "cnot_total_lower_bound": 6848,
+    "variational_parameters": 6,
+    "caveats": [
+      "LOWER BOUND: assumes all-to-all connectivity; limited-connectivity hardware needs SWAP insertion and would execute more.",
+      "The simulation applies the XY mixer EXACTLY; hardware must Trotterise, and that Trotter error is not modelled anywhere in this repository.",
+      "NOT EXECUTED on any quantum device."
+    ]
+  },
+  "top_designs_at_best_depth": [
+    {
+      "rank": 1,
+      "slot_classes": [
+        2,
+        3,
+        0,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "codes": [
+        2,
+        3,
+        0,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "probability": 0.004651104576124457,
+      "energy": -383.48736111111117,
+      "is_exact_optimum": true,
+      "class_sequence": "HYDROPHOBIC-SMALL_POLAR-AROM_W-AROM_W-HYDROPHOBIC-HYDROPHOBIC-AROM_FY-HYDROPHOBIC",
+      "representative_sequence": "LSWWLLFL"
+    },
+    {
+      "rank": 2,
+      "slot_classes": [
+        2,
+        3,
+        0,
+        0,
+        2,
+        3,
+        1,
+        2
+      ],
+      "codes": [
+        2,
+        3,
+        0,
+        0,
+        2,
+        3,
+        1,
+        2
+      ],
+      "probability": 0.003956154509300139,
+      "energy": -379.04854111111115,
+      "is_exact_optimum": false,
+      "class_sequence": "HYDROPHOBIC-SMALL_POLAR-AROM_W-AROM_W-HYDROPHOBIC-SMALL_POLAR-AROM_FY-HYDROPHOBIC",
+      "representative_sequence": "LSWWLSFL"
+    },
+    {
+      "rank": 3,
+      "slot_classes": [
+        2,
+        5,
+        0,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "codes": [
+        2,
+        5,
+        0,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "probability": 0.0038223487677066393,
+      "energy": -380.111638888889,
+      "is_exact_optimum": false,
+      "class_sequence": "HYDROPHOBIC-CHARGED_POS-AROM_W-AROM_W-HYDROPHOBIC-HYDROPHOBIC-AROM_FY-HYDROPHOBIC",
+      "representative_sequence": "LKWWLLFL"
+    },
+    {
+      "rank": 4,
+      "slot_classes": [
+        2,
+        2,
+        0,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "codes": [
+        2,
+        2,
+        0,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "probability": 0.003628117248378867,
+      "energy": -378.7866111111112,
+      "is_exact_optimum": false,
+      "class_sequence": "HYDROPHOBIC-HYDROPHOBIC-AROM_W-AROM_W-HYDROPHOBIC-HYDROPHOBIC-AROM_FY-HYDROPHOBIC",
+      "representative_sequence": "LLWWLLFL"
+    },
+    {
+      "rank": 5,
+      "slot_classes": [
+        2,
+        3,
+        0,
+        0,
+        2,
+        2,
+        0,
+        2
+      ],
+      "codes": [
+        2,
+        3,
+        0,
+        0,
+        2,
+        2,
+        0,
+        2
+      ],
+      "probability": 0.00328873968401151,
+      "energy": -376.29381111111115,
+      "is_exact_optimum": false,
+      "class_sequence": "HYDROPHOBIC-SMALL_POLAR-AROM_W-AROM_W-HYDROPHOBIC-HYDROPHOBIC-AROM_W-HYDROPHOBIC",
+      "representative_sequence": "LSWWLLWL"
+    },
+    {
+      "rank": 6,
+      "slot_classes": [
+        2,
+        5,
+        0,
+        0,
+        2,
+        3,
+        1,
+        2
+      ],
+      "codes": [
+        2,
+        5,
+        0,
+        0,
+        2,
+        3,
+        1,
+        2
+      ],
+      "probability": 0.0032544017833283844,
+      "energy": -375.6664722222223,
+      "is_exact_optimum": false,
+      "class_sequence": "HYDROPHOBIC-CHARGED_POS-AROM_W-AROM_W-HYDROPHOBIC-SMALL_POLAR-AROM_FY-HYDROPHOBIC",
+      "representative_sequence": "LKWWLSFL"
+    },
+    {
+      "rank": 7,
+      "slot_classes": [
+        2,
+        4,
+        0,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "codes": [
+        2,
+        4,
+        0,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "probability": 0.0031762737723871064,
+      "energy": -375.8511944444446,
+      "is_exact_optimum": false,
+      "class_sequence": "HYDROPHOBIC-CHARGED_NEG-AROM_W-AROM_W-HYDROPHOBIC-HYDROPHOBIC-AROM_FY-HYDROPHOBIC",
+      "representative_sequence": "LEWWLLFL"
+    },
+    {
+      "rank": 8,
+      "slot_classes": [
+        2,
+        0,
+        0,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "codes": [
+        2,
+        0,
+        0,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "probability": 0.0031427961911915936,
+      "energy": -375.1776944444445,
+      "is_exact_optimum": false,
+      "class_sequence": "HYDROPHOBIC-AROM_W-AROM_W-AROM_W-HYDROPHOBIC-HYDROPHOBIC-AROM_FY-HYDROPHOBIC",
+      "representative_sequence": "LWWWLLFL"
+    },
+    {
+      "rank": 9,
+      "slot_classes": [
+        2,
+        1,
+        0,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "codes": [
+        2,
+        1,
+        0,
+        0,
+        2,
+        2,
+        1,
+        2
+      ],
+      "probability": 0.0031330283470886217,
+      "energy": -375.38111111111124,
+      "is_exact_optimum": false,
+      "class_sequence": "HYDROPHOBIC-AROM_FY-AROM_W-AROM_W-HYDROPHOBIC-HYDROPHOBIC-AROM_FY-HYDROPHOBIC",
+      "representative_sequence": "LFWWLLFL"
+    },
+    {
+      "rank": 10,
+      "slot_classes": [
+        2,
+        2,
+        0,
+        0,
+        2,
+        3,
+        1,
+        2
+      ],
+      "codes": [
+        2,
+        2,
+        0,
+        0,
+        2,
+        3,
+        1,
+        2
+      ],
+      "probability": 0.0031003422090737204,
+      "energy": -374.3423444444445,
+      "is_exact_optimum": false,
+      "class_sequence": "HYDROPHOBIC-HYDROPHOBIC-AROM_W-AROM_W-HYDROPHOBIC-SMALL_POLAR-AROM_FY-HYDROPHOBIC",
+      "representative_sequence": "LLWWLSFL"
+    }
+  ],
+  "notes": [
+    "Exact statevector simulation inside the one-hot feasible subspace. NO QUANTUM HARDWARE WAS USED.",
+    "Nominal circuit width 48 qubits; simulated exactly in the 1679616-dimensional feasible sector the XY mixer cannot leave.",
+    "Validity rate is 1.0 by construction (mixer-enforced), not by penalty tuning.",
+    "NO QUANTUM SPEEDUP IS CLAIMED. Classical brute force over the same designs is faster here and returns a proven optimum; that optimum is the reference used above.",
+    "The XY mixer is applied as an exact matrix exponential. Hardware would need a Trotterised approximation, whose error is NOT modelled here."
+  ],
+  "figures": [
+    "qaoa_depth_sweep.png",
+    "qaoa_optimum_enrichment.png",
+    "qaoa_ansatz_comparison.png"
+  ],
+  "total_runtime_seconds": 1211.5592188
+}
