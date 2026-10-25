@@ -1,8 +1,7 @@
 # Publishes web/dist to GitHub Pages.
 #
-# THIS WORKFLOW HAS NOT BEEN RUN. It requires the repository owner to enable
-# Pages first: Settings -> Pages -> Build and deployment -> Source -> GitHub
-# Actions. Until that is done the job will fail at the configure-pages step.
+# If Pages is not enabled yet, configure-pages enables it automatically so the
+# first run does not fail before the build starts.
 #
 # QBIND_BASE is derived from the repository name because a project site is
 # served from https://<owner>.github.io/<repo>/ rather than from a domain root.
@@ -41,6 +40,8 @@ jobs:
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Install dependencies
         working-directory: ./web
